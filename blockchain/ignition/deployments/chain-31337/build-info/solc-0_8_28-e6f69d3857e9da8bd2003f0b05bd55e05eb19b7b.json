@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-e6f69d3857e9da8bd2003f0b05bd55e05eb19b7b",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/GameMap.sol": "project/contracts/GameMap.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/GameMap.sol": {
+        "content": "// SPDX-License-Identifier: UNLICENSED\r\npragma solidity ^0.8.24;\r\n\r\ncontract GameMap {\r\n    struct Tile {\r\n        address owner;\r\n        uint8 tileType; // 0 = Plain, 1 = Mountain, 2 = Mine\r\n    }\r\n\r\n    // Mapping koordinat (x, y) ke data petak\r\n    mapping(uint256 => mapping(uint256 => Tile)) public tiles;\r\n\r\n    // Event untuk memberitahu frontend saat petak diklaim\r\n    event TileClaimed(uint256 x, uint256 y, address newOwner);\r\n\r\n    function claimTile(uint256 x, uint256 y) public {\r\n        // Cek apakah petak sudah dimiliki\r\n        require(tiles[x][y].owner == address(0), \"Tile is already owned\");\r\n\r\n        // Set pemilik baru\r\n        tiles[x][y].owner = msg.sender;\r\n\r\n        // Kirim event\r\n        emit TileClaimed(x, y, msg.sender);\r\n    }\r\n}"
+      }
+    }
+  }
+}

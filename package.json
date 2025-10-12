@@ -1,0 +1,24 @@
+{
+  "name": "crypto-kingdoms-the-on-chain-dominion",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "compile:contract": "cd blockchain && npx hardhat compile",
+    "deploy:contract": "npm run compile:contract && cd blockchain && npx hardhat ignition deploy ./ignition/modules/DeployGame.ts --network localhost && cd .. && node copy-artifacts.js",
+    "start:client": "cd client && npm run dev",
+    "start:node": "cd blockchain && npx hardhat node",
+    "test:contract": "cd blockchain && npx hardhat test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fs-extra": "^11.3.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.14"
+  }
+}
