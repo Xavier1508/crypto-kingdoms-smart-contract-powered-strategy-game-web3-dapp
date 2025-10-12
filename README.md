@@ -1,6 +1,6 @@
 # Crypto Kingdoms: The On-Chain Dominion
 
-Welcome to Crypto Kingdoms, a prototype for a fully on-chain Real-Time Strategy (RTS) game. Inspired by classics like *Rise of Kingdoms* and collaborative phenomena like *r/place*, this project explores how every player action—from mining resources to claiming land and waging war—can be represented as a transaction within a persistent, player-owned world.
+Welcome to Crypto Kingdoms, a prototype for a fully on-chain Real-Time Strategy (RTS) game. Inspired by classics like *Rise of Kingdoms* and collaborative phenomena like *r/place*, this project explores how every player action—from mining resources to claiming land and waging war, can be represented as a transaction within a persistent, player-owned world.
 
 This project was built as an exploration of decentralized gameplay, where each tile of land is an NFT and all assets are tokens governed by smart contracts.
 
@@ -104,4 +104,5 @@ This project serves as a foundation that can be extended with the following feat
 
 ## 📄 License
 This project is licensed under the MIT License.
+
 
