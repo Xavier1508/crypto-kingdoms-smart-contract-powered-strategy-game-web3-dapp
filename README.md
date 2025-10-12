@@ -103,4 +103,5 @@ This project serves as a foundation that can be extended with the following feat
 ---
 
 ## 📄 License
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License.
+
