@@ -16,7 +16,7 @@ export interface GameMap$Type {
   readonly immutableReferences: {};
   readonly inputSourceName: "project/contracts/GameMap.sol";
   readonly buildInfoId: "solc-0_8_28-e6f69d3857e9da8bd2003f0b05bd55e05eb19b7b";
-};
+}
 
 import "hardhat/types/artifacts";
 declare module "hardhat/types/artifacts" {

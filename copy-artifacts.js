@@ -4,8 +4,6 @@ const path = require('path');
 async function main() {
     const sourceDir = path.resolve(__dirname, 'blockchain', 'artifacts', 'contracts');
     const destDir = path.resolve(__dirname, 'client', 'src', 'contracts');
-
-    // Pastikan folder tujuan ada
     await fs.ensureDir(destDir);
 
     try {

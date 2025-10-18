@@ -1,14 +1,20 @@
 {
   "name": "blockchain",
   "version": "1.0.0",
-  "type": "module",
+  "type": "commonjs",
   "devDependencies": {
-    "@nomicfoundation/hardhat-ignition": "^3.0.3",
-    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.0",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.14",
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@tenderly/hardhat-tenderly": "^2.3.0",
     "@types/node": "^22.18.10",
+    "dotenv": "^17.2.3",
+    "ethers": "^6.15.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
-    "hardhat": "^3.0.7",
-    "typescript": "~5.8.0",
-    "viem": "^2.38.0"
+    "hardhat": "2.22.0",
+    "typescript": "~5.8.0"
+  },
+  "overrides": {
+    "hardhat": "2.22.0",
+    "chai": "4.5.0"
   }
 }
