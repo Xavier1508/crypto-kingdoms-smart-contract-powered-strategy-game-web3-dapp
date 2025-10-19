@@ -4,11 +4,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 // Import pages
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
-import TestPage from './pages/TestPage';
+import InGamePage from './pages/InGamePage';
 
 const ProtectedRoute = ({ children }) => {
-  // Ganti dengan logika cek login Anda
-  const isAuthenticated = false; 
+  const isAuthenticated = localStorage.getItem('token'); 
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -21,10 +20,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Landing Page dengan Auth */}
+        {/* Halaman Landing (Login/Register) */}
         <Route path="/" element={<LandingPage />} />
         
-        {/* Game Page (Protected) */}
+        {/* Halaman Dashboard (Setelah Login) */}
         <Route 
           path="/game" 
           element={
@@ -33,8 +32,18 @@ function App() {
             </ProtectedRoute>
           } 
         />
-        <Route path="/test" element={<TestPage />} />
-        {/* Fallback Route */}
+        
+        {/* untuk Peta game */}
+        <Route 
+          path="/ingame" 
+          element={
+            <ProtectedRoute>
+              <InGamePage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Rute Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

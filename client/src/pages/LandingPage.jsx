@@ -1,5 +1,3 @@
-// src/pages/LandingPage.jsx
-
 import React from 'react';
 import AuthSection from '../components/auth/AuthSection';
 import { Swords, Shield, Crown } from 'lucide-react';
