@@ -1,10 +1,13 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
-// Import halaman-halaman Anda
+// Import pages
+import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
-import AuthPage from './pages/AuthPage';
+import TestPage from './pages/TestPage';
+
 const ProtectedRoute = ({ children }) => {
+  // Ganti dengan logika cek login Anda
   const isAuthenticated = false; 
 
   if (!isAuthenticated) {
@@ -14,13 +17,14 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rute Halaman Login/Registrasi (Halaman utama) */}
-        <Route path="/" element={<AuthPage />} />
+        {/* Landing Page dengan Auth */}
+        <Route path="/" element={<LandingPage />} />
+        
+        {/* Game Page (Protected) */}
         <Route 
           path="/game" 
           element={
@@ -29,8 +33,9 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route path="/test" element={<TestPage />} />
+        {/* Fallback Route */}
         <Route path="*" element={<Navigate to="/" replace />} />
-        
       </Routes>
     </BrowserRouter>
   );
