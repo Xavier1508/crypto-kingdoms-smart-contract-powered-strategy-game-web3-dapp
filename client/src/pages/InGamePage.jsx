@@ -1,77 +1,111 @@
-import React from 'react';
-import GameMap from '../components/GameMap';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Home } from 'lucide-react';
+
+import GameMap from '../components/ingamepageComp/GameMap';
+import GameUI from '../components/ingamepageComp/GameUI';
 
 const InGamePage = () => {
-  const navigate = useNavigate();
+    const navigate = useNavigate();
+    const mapRef = useRef(null); // Ref untuk akses fungsi kamera di GameMap
 
-  const handleBackToHome = () => {
-    navigate('/game');
-  };
+    const [worldData, setWorldData] = useState({
+        mapGrid: null,
+        ownershipMap: null,
+        playerData: null
+    });
+    
+    const [worldInfo, setWorldInfo] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [selectedTile, setSelectedTile] = useState(null);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/');
-  };
+    // Load Data
+    useEffect(() => {
+        const loadGameWorld = async () => {
+            const currentWorldId = localStorage.getItem('currentWorldId');
+            const userId = localStorage.getItem('userId');
 
-  return (
-    <div className="w-full h-screen bg-[#1f2937] text-white flex flex-col">
-      {/* Top Navigation Bar */}
-      <div className="w-full bg-[#1a2332] border-b border-[#4b5563] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="font-['Cinzel'] text-2xl font-bold text-[#d4af37]">Crypto Kingdoms</h1>
-          <span className="text-sm text-[#9ca3af]">Solo Conquest Mode</span>
+            if (!currentWorldId) {
+                navigate('/game');
+                return;
+            }
+
+            try {
+                setLoading(true);
+                const res = await fetch(`http://localhost:5000/api/worlds/${currentWorldId}/map`);
+                const data = await res.json();
+                
+                if (!res.ok) throw new Error("Failed to load map");
+
+                // Set Data State
+                setWorldData({
+                    mapGrid: data.mapGrid,
+                    ownershipMap: data.ownershipMap,
+                    playerData: data.playerData // Object { userId: { color, castleX, castleY } }
+                });
+
+                setWorldInfo({
+                    worldId: data.worldId,
+                    mapSize: data.mapSize,
+                    online: 32 
+                });
+                
+                // --- AUTO FOCUS CAMERA KE CASTLE PEMAIN ---
+                if (data.playerData && userId) {
+                    const myData = data.playerData[userId];
+                    if (myData && mapRef.current) {
+                        console.log("Found player castle at:", myData.castleX, myData.castleY);
+                        // Beri delay sedikit agar Pixi selesai init
+                        setTimeout(() => {
+                            mapRef.current.centerOnTile(myData.castleX, myData.castleY);
+                        }, 500);
+                    }
+                }
+
+            } catch (err) {
+                console.error("Map Load Error:", err);
+                navigate('/game');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadGameWorld();
+    }, [navigate]);
+
+    const handleTileClick = async (x, y) => {
+        // Fetch detail tile (logic fetch detail tetap sama)
+        // ...
+        // Placeholder UI trigger
+        setSelectedTile({ x, y, type: 1, name: "Wilderness" });
+    };
+
+    const handleCloseTileInfo = () => setSelectedTile(null);
+    const handleBackToLobby = () => navigate('/game');
+    const handleLogout = () => { localStorage.removeItem('token'); navigate('/'); };
+
+    if (loading) return <div className="text-white bg-black h-screen flex items-center justify-center">Loading Kingdom...</div>;
+
+    return (
+        <div className="relative w-full h-screen overflow-hidden bg-black">
+            
+            {/* PASS REF KE GAMEMAP */}
+            <GameMap 
+                ref={mapRef}
+                mapGrid={worldData.mapGrid} 
+                ownershipMap={worldData.ownershipMap}
+                playerData={worldData.playerData}
+                onTileClick={handleTileClick} 
+            />
+
+            <GameUI 
+                worldInfo={worldInfo}
+                selectedTile={selectedTile}
+                onBack={handleBackToLobby}
+                onLogout={handleLogout}
+                onCloseTileInfo={handleCloseTileInfo}
+            />
         </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={handleBackToHome}
-            className="px-4 py-2 bg-[#1f2937] hover:bg-[#2a3a4a] border border-[#4b5563] rounded-md flex items-center gap-2 transition-all"
-          >
-            <Home className="w-4 h-4" />
-            Back to Home
-          </button>
-          <button 
-            onClick={handleLogout}
-            className="px-4 py-2 bg-red-500/10 hover:bg-red-500 border border-red-500/50 hover:border-red-500 text-red-500 hover:text-white rounded-md flex items-center gap-2 transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
-        </div>
-      </div>
-
-      {/* Game Content Area */}
-      <main className="flex-1 flex items-center justify-center p-8">
-        <div className="flex flex-col items-center gap-6">
-          <div className="text-center mb-4">
-            <h2 className="font-['Cinzel'] text-3xl font-bold text-[#d4af37] mb-2">Game Map</h2>
-            <p className="text-[#9ca3af]">Your strategic battlefield awaits</p>
-          </div>
-          
-          <div className="border-4 border-[#4b5563] rounded-lg overflow-hidden shadow-[0_8px_32px_-8px_rgba(17,17,26,0.5)]">
-            <GameMap />
-          </div>
-
-          <div className="text-center mt-4">
-            <p className="text-sm text-[#9ca3af] mb-2">
-              Use this map to plan your conquests and manage your territories
-            </p>
-            <div className="flex gap-4 justify-center text-xs text-[#9ca3af]">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-600 rounded" />
-                <span>Grassland</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-gray-600 rounded" />
-                <span>Mountain/Wall</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
+    );
 };
 
 export default InGamePage;

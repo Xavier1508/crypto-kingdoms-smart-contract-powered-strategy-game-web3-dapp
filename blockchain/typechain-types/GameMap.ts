@@ -24,31 +24,48 @@ import type {
 } from "./common";
 
 export interface GameMapInterface extends Interface {
-  getFunction(nameOrSignature: "claimTile" | "tiles"): FunctionFragment;
+  getFunction(
+    nameOrSignature: "claimTile" | "getTileOwner" | "worldTiles"
+  ): FunctionFragment;
 
   getEvent(nameOrSignatureOrTopic: "TileClaimed"): EventFragment;
 
   encodeFunctionData(
     functionFragment: "claimTile",
-    values: [BigNumberish, BigNumberish]
+    values: [BigNumberish, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "tiles",
-    values: [BigNumberish, BigNumberish]
+    functionFragment: "getTileOwner",
+    values: [BigNumberish, BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "worldTiles",
+    values: [BigNumberish, BigNumberish, BigNumberish]
   ): string;
 
   decodeFunctionResult(functionFragment: "claimTile", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "tiles", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getTileOwner",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "worldTiles", data: BytesLike): Result;
 }
 
 export namespace TileClaimedEvent {
   export type InputTuple = [
+    worldId: BigNumberish,
     x: BigNumberish,
     y: BigNumberish,
     newOwner: AddressLike
   ];
-  export type OutputTuple = [x: bigint, y: bigint, newOwner: string];
+  export type OutputTuple = [
+    worldId: bigint,
+    x: bigint,
+    y: bigint,
+    newOwner: string
+  ];
   export interface OutputObject {
+    worldId: bigint;
     x: bigint;
     y: bigint;
     newOwner: string;
@@ -103,13 +120,19 @@ export interface GameMap extends BaseContract {
   ): Promise<this>;
 
   claimTile: TypedContractMethod<
-    [x: BigNumberish, y: BigNumberish],
+    [worldId: BigNumberish, x: BigNumberish, y: BigNumberish],
     [void],
     "nonpayable"
   >;
 
-  tiles: TypedContractMethod<
-    [arg0: BigNumberish, arg1: BigNumberish],
+  getTileOwner: TypedContractMethod<
+    [worldId: BigNumberish, x: BigNumberish, y: BigNumberish],
+    [string],
+    "view"
+  >;
+
+  worldTiles: TypedContractMethod<
+    [arg0: BigNumberish, arg1: BigNumberish, arg2: BigNumberish],
     [[string, bigint] & { owner: string; tileType: bigint }],
     "view"
   >;
@@ -121,14 +144,21 @@ export interface GameMap extends BaseContract {
   getFunction(
     nameOrSignature: "claimTile"
   ): TypedContractMethod<
-    [x: BigNumberish, y: BigNumberish],
+    [worldId: BigNumberish, x: BigNumberish, y: BigNumberish],
     [void],
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "tiles"
+    nameOrSignature: "getTileOwner"
   ): TypedContractMethod<
-    [arg0: BigNumberish, arg1: BigNumberish],
+    [worldId: BigNumberish, x: BigNumberish, y: BigNumberish],
+    [string],
+    "view"
+  >;
+  getFunction(
+    nameOrSignature: "worldTiles"
+  ): TypedContractMethod<
+    [arg0: BigNumberish, arg1: BigNumberish, arg2: BigNumberish],
     [[string, bigint] & { owner: string; tileType: bigint }],
     "view"
   >;
@@ -142,7 +172,7 @@ export interface GameMap extends BaseContract {
   >;
 
   filters: {
-    "TileClaimed(uint256,uint256,address)": TypedContractEvent<
+    "TileClaimed(uint256,uint256,uint256,address)": TypedContractEvent<
       TileClaimedEvent.InputTuple,
       TileClaimedEvent.OutputTuple,
       TileClaimedEvent.OutputObject

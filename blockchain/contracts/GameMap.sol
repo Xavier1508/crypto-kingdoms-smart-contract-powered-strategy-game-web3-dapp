@@ -7,20 +7,23 @@ contract GameMap {
         uint8 tileType; // 0 = Plain, 1 = Mountain, 2 = Mine
     }
 
-    // Mapping koordinat (x, y) ke data petak
-    mapping(uint256 => mapping(uint256 => Tile)) public tiles;
+    // Mapping: World ID => Koordinat X => Koordinat Y => Data Petak
+    // Ini memungkinkan kita punya ribuan "Dunia" di dalam satu kontrak
+    mapping(uint256 => mapping(uint256 => mapping(uint256 => Tile))) public worldTiles;
 
-    // Event untuk memberitahu frontend saat petak diklaim
-    event TileClaimed(uint256 x, uint256 y, address newOwner);
+    // Event: Sekarang menyertakan worldId
+    event TileClaimed(uint256 indexed worldId, uint256 x, uint256 y, address newOwner);
 
-    function claimTile(uint256 x, uint256 y) public {
-        // Cek apakah petak sudah dimiliki
-        require(tiles[x][y].owner == address(0), "Tile is already owned");
+    function claimTile(uint256 worldId, uint256 x, uint256 y) public {
+        // Cek apakah petak di dunia tersebut sudah dimiliki
+        require(worldTiles[worldId][x][y].owner == address(0), "Tile is already owned");
+        
+        worldTiles[worldId][x][y].owner = msg.sender;
+        
+        emit TileClaimed(worldId, x, y, msg.sender);
+    }
 
-        // Set pemilik baru
-        tiles[x][y].owner = msg.sender;
-
-        // Kirim event
-        emit TileClaimed(x, y, msg.sender);
+    function getTileOwner(uint256 worldId, uint256 x, uint256 y) public view returns (address) {
+        return worldTiles[worldId][x][y].owner;
     }
 }

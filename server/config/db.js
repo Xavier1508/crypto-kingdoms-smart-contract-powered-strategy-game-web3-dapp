@@ -1,38 +1,31 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
+// server/config/db.js
+const mongoose = require('mongoose');
 require('dotenv').config();
 
-const uri = process.env.MONGO_URI;
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
+let dbInstance;
 
-let db; // Variabel untuk menyimpan koneksi database
-
-// Fungsi untuk menghubungkan ke DB
-async function connectDB() {
-  if (db) return db; // Jika sudah terkoneksi, kembalikan koneksi yang ada
-
+const connectDB = async () => {
   try {
-    await client.connect();
-    db = client.db("crypto_kingdom_db"); // Ganti "CryptoKingdomsDB" dengan nama database Anda
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    return db;
-  } catch (err) {
-    console.error("Gagal terhubung ke MongoDB", err);
-    process.exit(1); // Keluar dari aplikasi jika gagal konek
-  }
-}
+    const conn = await mongoose.connect(process.env.MONGO_URI);
 
-// Fungsi untuk mendapatkan koneksi DB yang sudah ada
-function getDB() {
-  if (!db) {
-    throw new Error("Database not initialized!");
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    
+    dbInstance = conn.connection.db;
+    
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
   }
-  return db;
-}
+};
+
+const getDB = () => {
+  if (!dbInstance) {
+    if (mongoose.connection.db) {
+        return mongoose.connection.db;
+    }
+    throw new Error("Database not initialized! Tunggu connectDB selesai.");
+  }
+  return dbInstance;
+};
 
 module.exports = { connectDB, getDB };

@@ -152,6 +152,11 @@ router.post('/login', async (req, res) => {
     // 8. Kirim balasan sukses ke frontend
     res.status(200).json({
       token,
+      user: {
+        id: user._id,        // <-- PENTING: Kirim ID user ke depan
+        username: user.username,
+        wallet: user.walletAddress
+      },
       msg: 'Login berhasil!',
     });
 
