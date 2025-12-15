@@ -1,31 +1,25 @@
-// server/routes/worlds.js
 const express = require('express');
 const router = express.Router();
 const { 
     getWorldsList, 
     getWorldMap, 
-    regenerateWorldMap,
     joinWorld, 
+    trainTroops, 
+    regenerateWorldMap,
     getTileInfo,
-    getProvinceDetails // NEW
+    getProvinceDetails,
+    conquerTile
 } = require('../controllers/worldController');
 
-// 1. Ambil List Server (Lobby)
 router.get('/', getWorldsList);
-
-// 2. Join Server
 router.post('/join', joinWorld);
-
-// 3. Ambil Data Map
 router.get('/:worldId/map', getWorldMap);
+router.post('/train', trainTroops); 
+router.post('/conquer', conquerTile);
 
-// 4. Force Regenerate Map (Admin/Dev)
+// 6. Admin/Dev Utils
 router.post('/:worldId/regenerate', regenerateWorldMap);
-
-// 5. Info Tile
 router.get('/:worldId/tile/:x/:y', getTileInfo);
-
-// 6. Province Details (NEW!)
 router.get('/:worldId/province/:provinceId', getProvinceDetails);
 
 module.exports = router;

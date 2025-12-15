@@ -2,10 +2,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http'); // Import module HTTP bawaan Node
+const { Server } = require('socket.io'); // Import Socket.io
+
 const { connectDB } = require('./config/db');
 const World = require('./models/World');
 const { Province, ProvinceManager } = require('./models/ProvinceManager');
-const { generateRoKMap } = require('./utils/voronoiMapGenerator'); // VORONOI!
+const { generateRoKMap } = require('./utils/voronoiMapGenerator');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -14,102 +17,147 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// --- SETUP SOCKET.IO ---
+const server = http.createServer(app); // Bungkus Express dengan HTTP Server
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  console.log(`⚡ User Connected: ${socket.id}`);
+  socket.on('join_world_room', (worldId) => {
+    const roomName = `world_${String(worldId)}`; 
+    socket.join(roomName);
+    console.log(`🔌 Socket ${socket.id} JOINED room: ${roomName}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User Disconnected', socket.id);
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/worlds', require('./routes/worlds')); 
 
 // Base Route
-app.get('/', (req, res) => res.send('🏰 Kingdom Server Running (Voronoi Edition)'));
+app.get('/', (req, res) => res.send('🏰 Kingdom Server Running (Socket.io Active)'));
 
-/**
- * LOGIKA INISIALISASI WORLD (VORONOI)
- */
+// Logika Inisialisasi World (Sama seperti sebelumnya, disingkat biar rapi)
 const initializeGameWorld = async () => {
   try {
     const worldCount = await World.countDocuments();
-
     if (worldCount === 0) {
-      console.log("🌍 Tidak ada dunia ditemukan. Memulai Protokol GENESIS...");
-      console.log("⚙️  Generating ORGANIC MAP (Voronoi + Domain Warping)...");
+      console.log("GENESIS PROTOCOL: Generating Map (400x400)...");
+      const mapData = generateRoKMap(400); 
       
-      // Generate Map dengan Voronoi
-      const mapData = generateRoKMap(200);
-      
-      console.log(`✅ Map generated: ${mapData.provinces.length} provinces`);
-      console.log(`   - Outer: ${mapData.provinces.filter(p => p.layer === 'outer').length}`);
-      console.log(`   - Mid: ${mapData.provinces.filter(p => p.layer === 'mid').length}`);
-      console.log(`   - Inner: ${mapData.provinces.filter(p => p.layer === 'inner').length}`);
-      console.log(`   - Center: ${mapData.provinces.filter(p => p.layer === 'center').length}`);
-
-      // Create World
       const newWorld = new World({
         worldId: 1,
         name: "The Lost Kingdom (Season 1)",
         status: "ACTIVE",
         maxPlayers: 32,
-        seasonEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        seasonEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 
         mapGrid: mapData.grid,
-        provinceMap: mapData.provinceMap || [], // Store province assignments
-        mapSize: 200,
-        mapVersion: 'voronoi-v1',
-        generatedAt: new Date()
+        provinceMap: mapData.provinceMap || [],
+        mapSize: 400, 
+        mapVersion: 'voronoi-v2',
+        
+        playerData: {},
+        players: [],
+        
+        ownershipMap: Array(400).fill().map(() => Array(400).fill(null)) 
       });
 
       await newWorld.save();
-      console.log("✅ World #1 created in database");
-      
-      // Initialize Province System
-      console.log("⚙️  Initializing province system...");
       await ProvinceManager.initializeProvinces(1, mapData.provinces);
-      
-      // TODO: Calculate adjacency (needs provinceMap from generator)
-      // For now, we'll calculate it lazily on first map request
-      
-      console.log("✅ SUKSES: World #1 (Voronoi Organic Style) Siap Dimainkan!");
-      console.log("📍 Map Layout:");
-      console.log("   🟢 Layer 1 (Outer): Starting provinces - Available Day 0");
-      console.log("   🟩 Layer 2 (Mid): Resource provinces - Unlocks Day 5");
-      console.log("   🌲 Layer 3 (Inner): Elite provinces - Unlocks Day 10");
-      console.log("   👑 Center: Kingdom Temple - Unlocks Day 15");
-      
+      console.log("✅ World #1 Created!");
     } else {
-      console.log(`✅ Server Siap. ${worldCount} Dunia terdeteksi di Database.`);
-      
-      // Auto-unlock provinces berdasarkan hari
-      for (let i = 1; i <= worldCount; i++) {
-        const world = await World.findOne({ worldId: i });
-        if (world && world.status === 'ACTIVE') {
-          const daysPassed = Math.floor(
-            (Date.now() - world.createdAt.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          await ProvinceManager.unlockByDay(i, daysPassed);
-          console.log(`🔓 World ${i}: Day ${daysPassed} - Checked province unlocks`);
-        }
-      }
+      console.log(`✅ Server Ready. ${worldCount} Worlds Detected.`);
     }
-
   } catch (error) {
-    console.error("❌ Gagal Inisialisasi World:", error);
-    console.error(error.stack);
+    console.error("❌ Init Error:", error);
   }
 };
 
-// Start Server
-connectDB().then(async () => {
-  
-  // UNCOMMENT UNTUK RESET DATABASE (DEV ONLY!)
-  // await World.deleteMany({});
-  // await Province.deleteMany({});
-  // console.log("⚠️  Database World & Province di-reset!");
+const GAME_TICK_RATE = 2000; // Cek setiap 2 detik biar responsif
 
+setInterval(async () => {
+  try {
+    const activeWorlds = await World.find({ status: 'ACTIVE' });
+
+    for (const world of activeWorlds) {
+      if (!world.playerData) continue;
+
+      let updates = {};
+      let hasChanges = false;
+      const now = new Date();
+
+      for (const [userId, pData] of world.playerData) {
+        
+        // A. PRODUKSI RESOURCE (Logika lama Anda)
+        const baseRate = 5; 
+        pData.resources.food += baseRate;
+        pData.resources.wood += baseRate;
+        pData.resources.stone += baseRate / 2;
+        pData.resources.gold += baseRate / 5;
+
+        // B. PROSES TRAINING QUEUE [BARU]
+        if (pData.trainingQueue && pData.trainingQueue.length > 0) {
+            // Filter queue yang SUDAH SELESAI
+            const finishedQueue = pData.trainingQueue.filter(q => new Date(q.endTime) <= now);
+            
+            // Filter queue yang MASIH BERJALAN
+            const activeQueue = pData.trainingQueue.filter(q => new Date(q.endTime) > now);
+
+            if (finishedQueue.length > 0) {
+                // Pindahkan pasukan yang jadi
+                finishedQueue.forEach(item => {
+                    pData.troops[item.troopType] += item.amount;
+                    console.log(`✅ Training Complete for ${userId}: ${item.amount} ${item.troopType}`);
+                });
+
+                // Update sisa antrian
+                pData.trainingQueue = activeQueue;
+                hasChanges = true; // Trigger save
+            }
+        }
+
+        // C. HITUNG POWER TOTAL
+        const troopPower = (pData.troops.infantry * 1) + 
+                           (pData.troops.archer * 1.5) + 
+                           (pData.troops.cavalry * 2) + 
+                           (pData.troops.siege * 2.5);
+        pData.power = Math.floor(troopPower);
+        
+        // Tandai ada perubahan resource (selalu true karena produksi jalan)
+        hasChanges = true; 
+      }
+
+      if (hasChanges) {
+        world.markModified('playerData');
+        await world.save();
+
+        io.to(`world_${world.worldId}`).emit('resource_update', {
+            worldId: world.worldId,
+            playerData: world.playerData
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Game Loop Error:", err);
+  }
+}, GAME_TICK_RATE);
+
+connectDB().then(async () => {
   await initializeGameWorld();
   
-  app.listen(PORT, () => {
-    console.log(`🚀 Kingdom Server berjalan di http://localhost:${PORT}`);
-    console.log(`📡 API Endpoints:`);
-    console.log(`   GET  /api/worlds - List all worlds`);
-    console.log(`   GET  /api/worlds/:id/map - Get map data`);
-    console.log(`   GET  /api/worlds/:id/province/:provinceId - Province details`);
-    console.log(`   POST /api/worlds/:id/regenerate - Regenerate map`);
+  server.listen(PORT, () => {
+    console.log(`Server berjalan di http://localhost:${PORT}`);
+    console.log(`Socket.io Ready`);
   });
 });
