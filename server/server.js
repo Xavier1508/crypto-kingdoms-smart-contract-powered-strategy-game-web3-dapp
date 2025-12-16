@@ -43,12 +43,12 @@ io.on('connection', (socket) => {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/worlds', require('./routes/worlds')); 
+app.use('/api/worlds', require('./routes/worlds'));
+app.use('/api/users', require('./routes/users'));
 
 // Base Route
-app.get('/', (req, res) => res.send('🏰 Kingdom Server Running (Socket.io Active)'));
+app.get('/', (req, res) => res.send('Kingdom Server Running (Socket.io Active)'));
 
-// Logika Inisialisasi World (Sama seperti sebelumnya, disingkat biar rapi)
 const initializeGameWorld = async () => {
   try {
     const worldCount = await World.countDocuments();

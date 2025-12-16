@@ -1,29 +1,47 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.24;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-contract GameMap {
-    struct Tile {
-        address owner;
-        uint8 tileType; // 0 = Plain, 1 = Mountain, 2 = Mine
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+
+contract GameMap is ERC721URIStorage {
+    uint256 private _tokenIds;
+
+    struct Kingdom {
+        string username;
+        int256 x;
+        int256 y;
+        uint256 power;
     }
 
-    // Mapping: World ID => Koordinat X => Koordinat Y => Data Petak
-    // Ini memungkinkan kita punya ribuan "Dunia" di dalam satu kontrak
-    mapping(uint256 => mapping(uint256 => mapping(uint256 => Tile))) public worldTiles;
+    mapping(uint256 => Kingdom) public kingdoms;
+    mapping(address => bool) public hasKingdom;
 
-    // Event: Sekarang menyertakan worldId
-    event TileClaimed(uint256 indexed worldId, uint256 x, uint256 y, address newOwner);
+    event KingdomMinted(address indexed owner, uint256 tokenId, int256 x, int256 y);
 
-    function claimTile(uint256 worldId, uint256 x, uint256 y) public {
-        // Cek apakah petak di dunia tersebut sudah dimiliki
-        require(worldTiles[worldId][x][y].owner == address(0), "Tile is already owned");
-        
-        worldTiles[worldId][x][y].owner = msg.sender;
-        
-        emit TileClaimed(worldId, x, y, msg.sender);
+    constructor() ERC721("CryptoKingdoms", "CKREALM") {}
+
+    function mintKingdom(
+        string memory _username,
+        int256 _x,
+        int256 _y
+    ) public returns (uint256) {
+        require(!hasKingdom[msg.sender], "One wallet, one kingdom!");
+
+        _tokenIds++;
+        uint256 newItemId = _tokenIds;
+
+        _mint(msg.sender, newItemId);
+
+        kingdoms[newItemId] = Kingdom(_username, _x, _y, 1000);
+        hasKingdom[msg.sender] = true;
+
+        emit KingdomMinted(msg.sender, newItemId, _x, _y);
+
+        return newItemId;
     }
 
-    function getTileOwner(uint256 worldId, uint256 x, uint256 y) public view returns (address) {
-        return worldTiles[worldId][x][y].owner;
+    function updatePower(uint256 _tokenId, uint256 _newPower) public {
+        require(ownerOf(_tokenId) == msg.sender, "Not your kingdom");
+        kingdoms[_tokenId].power = _newPower;
     }
 }

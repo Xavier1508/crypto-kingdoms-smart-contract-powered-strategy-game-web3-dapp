@@ -16,5 +16,8 @@
   "overrides": {
     "hardhat": "2.22.0",
     "chai": "4.5.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.4.0"
   }
 }

@@ -1,9 +1,9 @@
-import React, { useState } from 'react'; // Tambahkan useState
+// client/src/components/homepageComp/MainActionHub.jsx
+import React, { useState } from 'react';
 import { Crown, Castle, Globe, ChevronRight } from 'lucide-react';
-import ServerLobbyModal from './ServerLobbyModal'; // Import Modal
+import ServerLobbyModal from './ServerLobbyModal';
 
-const MainActionHub = () => {
-  // State untuk kontrol Modal
+const MainActionHub = ({ username }) => { 
   const [isLobbyOpen, setIsLobbyOpen] = useState(false);
 
   const handleOpenLobby = () => {
@@ -19,15 +19,13 @@ const MainActionHub = () => {
               className="font-['Cinzel'] text-5xl font-black mb-3 text-[#d4af37] uppercase tracking-widest"
               style={{ textShadow: '0 0 30px rgba(212, 175, 55, 0.5)' }} 
             >
-              WELCOME, COMMANDER
+              WELCOME, {username || "COMMANDER"}
             </h1>
             <p className="text-[#9ca3af] text-lg">Your kingdom awaits. Choose your path to glory.</p>
           </div>
 
-          {/* --- Game Mode Selection --- */}
           <div className="grid md:grid-cols-2 gap-6">
-            
-            {/* Solo Conquest (Coming Soon) */}
+            {/* Solo Conquest */}
             <div className="p-8 rounded-lg shadow-[0_4px_24px_-4px_rgba(17,17,26,0.5)] bg-gradient-to-br from-[#1f2937]/60 to-[#1f2937]/40 border border-[#4b5563]/30 relative overflow-hidden opacity-75">
                <div className="absolute inset-0 bg-gradient-to-br from-[#1f2937] to-transparent opacity-50" />
               <div className="relative flex flex-col items-center text-center space-y-6">
@@ -44,10 +42,10 @@ const MainActionHub = () => {
               </div>
             </div>
 
-            {/* Multiplayer Mode (Active -> Buka Modal) */}
+            {/* Multiplayer Mode */}
             <div 
               className="group p-8 rounded-lg shadow-[0_4px_24px_-4px_rgba(17,17,26,0.5)] bg-gradient-to-br from-[#1f2937] to-[#1f2937]/80 border border-[#00d4ff]/50 hover:border-[#00d4ff] transition-all duration-300 cursor-pointer hover:scale-105" 
-              onClick={handleOpenLobby} // <-- Trigger Modal di sini
+              onClick={handleOpenLobby} 
             >
               <div className="flex flex-col items-center text-center space-y-6">
                 <div className="p-4 rounded-full bg-[#00d4ff]/10 group-hover:shadow-[0_0_40px_rgba(0,212,255,0.3)] transition-all">
@@ -63,12 +61,9 @@ const MainActionHub = () => {
                 </button>
               </div>
             </div>
-
           </div>
 
-          {/* ... (Sisanya sama seperti sebelumnya) */}
            <div className="p-6 rounded-lg shadow-[0_4px_24px_-4px_rgba(17,17,26,0.5)] bg-[#1f2937]/40 border border-[#4b5563]/30">
-            {/* Info Path to Dominion... (biarkan sama) */}
              <div className="flex items-start gap-4">
               <div className="p-3 rounded-lg bg-[#d4af37]/20">
                 <Crown className="w-6 h-6 text-[#d4af37]" />
@@ -85,7 +80,6 @@ const MainActionHub = () => {
         </div>
       </main>
 
-      {/* Render Modal */}
       <ServerLobbyModal isOpen={isLobbyOpen} onClose={() => setIsLobbyOpen(false)} />
     </>
   );

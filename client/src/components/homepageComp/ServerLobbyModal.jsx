@@ -1,6 +1,9 @@
+// client/src/components/homepageComp/ServerLobbyModal.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Users, Globe, Shield, Activity, Lock, AlertCircle } from 'lucide-react';
+import { X, Users, Globe, Shield, Activity, Lock, AlertCircle, Loader2 } from 'lucide-react';
+
+import { mintKingdomNFT } from '../../utils/Web3Client'; 
 
 const ServerLobbyModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -9,39 +12,30 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
   const [worlds, setWorlds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' or 'my'
-  const [joiningId, setJoiningId] = useState(null); // Loading state saat join
+  const [activeTab, setActiveTab] = useState('all'); 
+  
+  // State Status Join
+  const [joiningId, setJoiningId] = useState(null); 
+  const [joinStep, setJoinStep] = useState(""); // "Connecting...", "Minting NFT...", "Finalizing..."
 
-  // TODO: Ambil User ID asli dari Auth Context/LocalStorage
-  // Untuk sementara kita simulasi ambil dari localStorage atau pakai dummy ID
-  // PENTING: Pastikan saat Login, userId disimpan di localStorage
-  const currentUserId = localStorage.getItem('userId') || 'user_demo_123'; 
+  const currentUserId = localStorage.getItem('userId'); 
 
-  // 1. FETCH WORLDS DATA
+  // 1. FETCH WORLDS DATA (Sama seperti sebelumnya)
   useEffect(() => {
-    if (isOpen) {
-      fetchWorlds();
-    }
+    if (isOpen) fetchWorlds();
   }, [isOpen]);
 
   const fetchWorlds = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Hit endpoint backend
       const res = await fetch('http://localhost:5000/api/worlds');
-      
       if (!res.ok) throw new Error("Gagal mengambil data server.");
-      
       const data = await res.json();
       setWorlds(data);
       
-      // Cek apakah user punya active world, kalau ada switch tab otomatis
       const myWorld = data.find(w => w.players.includes(currentUserId));
-      if (myWorld) {
-        setActiveTab('my');
-      }
+      if (myWorld) setActiveTab('my');
 
     } catch (err) {
       console.error("Lobby Error:", err);
@@ -51,25 +45,30 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // 2. FILTER LOGIC
   const myWorlds = worlds.filter(w => w.players.includes(currentUserId));
   const displayWorlds = activeTab === 'my' ? myWorlds : worlds;
 
-  // 3. JOIN / ENTER WORLD LOGIC
+  // --- [UPDATE BESAR DISINI] JOIN LOGIC ---
   const handleJoinWorld = async (world) => {
     const isAlreadyJoined = world.players.includes(currentUserId);
 
     if (isAlreadyJoined) {
-      // Logic Enter (Sudah join)
+      // Kalau sudah join, langsung masuk
       console.log(`🚀 Entering World ${world.worldId}...`);
       enterGame(world.worldId);
     } else {
-      // Logic Join Baru (Spawn Baru)
+      // Kalau BELUM join -> Proses Spawn & Minting
       if (world.status === 'FULL') return;
+      if (!window.ethereum) {
+        alert("MetaMask is required to join a new world!");
+        return;
+      }
 
       try {
         setJoiningId(world.worldId);
+        setJoinStep("Allocating Territory..."); // Step 1
         
+        // 1. Minta Server alokasikan lahan (Database update)
         const res = await fetch('http://localhost:5000/api/worlds/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -80,27 +79,39 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
         });
 
         const data = await res.json();
-        
         if (!res.ok) throw new Error(data.msg || "Failed to join");
 
-        console.log("✅ Join Success:", data);
+        console.log("✅ Server Spawn Success:", data);
+        const { x, y } = data.spawnLocation;
+        const kingdomName = localStorage.getItem('username') || "Unknown King";
+
+        // 2. [BLOCKCHAIN] MINT NFT DI KOORDINAT ITU
+        setJoinStep("Minting Kingdom NFT..."); // Step 2 (Popup MetaMask muncul)
         
-        // Simpan spawn info jika perlu (opsional)
-        localStorage.setItem('spawnInfo', JSON.stringify(data.spawnProvince));
+        const mintResult = await mintKingdomNFT(kingdomName, x, y);
         
+        if (!mintResult.success) {
+          // Jika user reject di metamask atau error gas
+          throw new Error("Blockchain Minting Failed: " + mintResult.error);
+        }
+
+        console.log("✅ NFT Minted on Chain!");
+        setJoinStep("Entering World...");
+        
+        // 3. Masuk Game
         enterGame(world.worldId);
 
       } catch (err) {
-        alert(`Failed to join: ${err.message}`);
+        alert(`Join Failed: ${err.message}`);
+        console.error(err);
         setJoiningId(null);
+        setJoinStep("");
       }
     }
   };
 
   const enterGame = (worldId) => {
-    // Simpan world ID aktif ke storage biar InGamePage tau harus load map yang mana
     localStorage.setItem('currentWorldId', worldId);
-    localStorage.setItem('userId', currentUserId); // Ensure ID is saved
     navigate('/ingame');
   };
 
@@ -110,7 +121,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl bg-[#1a2332] border border-[#4b5563] rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
         
-        {/* HEADER */}
+        {/* HEADER (Sama) */}
         <div className="p-6 border-b border-[#4b5563] flex justify-between items-center bg-[#1f2937]">
           <div>
             <h2 className="text-2xl font-bold font-['Cinzel'] text-[#d4af37] tracking-wider flex items-center gap-2">
@@ -123,31 +134,27 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* TABS */}
+        {/* TABS (Sama) */}
         <div className="flex border-b border-[#4b5563] bg-[#1a2332]">
-          <button 
-            onClick={() => setActiveTab('all')}
-            className={`flex-1 py-4 text-sm font-bold tracking-wide transition-colors flex items-center justify-center gap-2
-              ${activeTab === 'all' 
-                ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-b-2 border-[#00d4ff]' 
-                : 'text-gray-400 hover:bg-[#1f2937] hover:text-white'}`}
-          >
-            <Globe className="w-4 h-4" /> ALL REALMS
-          </button>
-          <button 
-            onClick={() => setActiveTab('my')}
-            className={`flex-1 py-4 text-sm font-bold tracking-wide transition-colors flex items-center justify-center gap-2
-              ${activeTab === 'my' 
-                ? 'bg-[#d4af37]/10 text-[#d4af37] border-b-2 border-[#d4af37]' 
-                : 'text-gray-400 hover:bg-[#1f2937] hover:text-white'}`}
-          >
-            <Shield className="w-4 h-4" /> MY ACTIVE REALM
-            {myWorlds.length > 0 && (
-              <span className="bg-[#d4af37] text-black text-[10px] px-1.5 py-0.5 rounded-full">
-                {myWorlds.length}
-              </span>
-            )}
-          </button>
+            {/* ... (Code Tab Buttons SAMA SEPERTI SEBELUMNYA) ... */}
+             <button 
+                onClick={() => setActiveTab('all')}
+                className={`flex-1 py-4 text-sm font-bold tracking-wide transition-colors flex items-center justify-center gap-2
+                  ${activeTab === 'all' 
+                    ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-b-2 border-[#00d4ff]' 
+                    : 'text-gray-400 hover:bg-[#1f2937] hover:text-white'}`}
+              >
+                <Globe className="w-4 h-4" /> ALL REALMS
+              </button>
+              <button 
+                onClick={() => setActiveTab('my')}
+                className={`flex-1 py-4 text-sm font-bold tracking-wide transition-colors flex items-center justify-center gap-2
+                  ${activeTab === 'my' 
+                    ? 'bg-[#d4af37]/10 text-[#d4af37] border-b-2 border-[#d4af37]' 
+                    : 'text-gray-400 hover:bg-[#1f2937] hover:text-white'}`}
+              >
+                <Shield className="w-4 h-4" /> MY ACTIVE REALM
+              </button>
         </div>
 
         {/* LIST SERVER */}
@@ -196,20 +203,16 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
                             </span>
                           )}
                         </div>
-                        
+                        {/* Info Status (Sama) */}
                         <div className="flex items-center gap-4 text-xs text-gray-400">
-                          <span className="flex items-center gap-1">
+                           <span className="flex items-center gap-1">
                             <Activity className="w-3 h-3 text-green-500" />
                             Status: <span className="text-green-400 font-bold">{world.status}</span>
                           </span>
-                          <span className="flex items-center gap-1">
-                            📅 Age: {Math.floor((Date.now() - new Date(world.createdAt).getTime())/(1000*60*60*24))} Days
+                           <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {world.players.length}/{world.maxPlayers}
                           </span>
-                          {world.provinceStats && (
-                             <span className="flex items-center gap-1 text-[#00d4ff]">
-                                🗺️ Provinces: {world.provinceStats.unlocked}/{world.provinceStats.total}
-                             </span>
-                          )}
                         </div>
                       </div>
 
@@ -218,10 +221,6 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
                         
                         {/* Progress Bar */}
                         <div className="w-full text-right">
-                          <div className="flex items-center justify-end gap-1 text-xs text-gray-300 mb-1">
-                            <Users className="w-3 h-3" />
-                            <span>{world.players.length}/{world.maxPlayers}</span>
-                          </div>
                           <div className="w-32 h-1.5 bg-gray-700 rounded-full overflow-hidden ml-auto">
                             <div 
                               className={`h-full rounded-full ${isJoined ? 'bg-[#d4af37]' : 'bg-[#00d4ff]'}`} 
@@ -230,13 +229,13 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
                           </div>
                         </div>
 
-                        {/* Button */}
+                        {/* Button JOIN / CONTINUE */}
                         <button 
                           onClick={() => handleJoinWorld(world)}
                           disabled={joiningId === world.worldId || (!isJoined && isFull)}
-                          className={`px-6 py-2 rounded font-bold text-sm flex items-center gap-2 transition-all shadow-lg
+                          className={`px-6 py-2 rounded font-bold text-sm flex items-center gap-2 transition-all shadow-lg min-w-[140px] justify-center
                             ${joiningId === world.worldId 
-                                ? 'bg-gray-600 text-gray-300 cursor-wait' 
+                                ? 'bg-indigo-600 text-white cursor-wait animate-pulse' 
                                 : isJoined
                                   ? 'bg-[#d4af37] hover:bg-[#b5952f] text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]'
                                   : isFull
@@ -244,15 +243,17 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
                                     : 'bg-[#00d4ff] hover:bg-[#00bfe6] text-[#0f172a] shadow-[0_0_15px_rgba(0,212,255,0.4)]'
                             }`}
                         >
-                           {joiningId === world.worldId ? (
-                             <>Connecting...</>
-                           ) : isJoined ? (
-                             <>CONTINUE <ChevronRightIcon /></>
-                           ) : isFull ? (
-                             <><Lock className="w-3 h-3"/> FULL</>
-                           ) : (
-                             <>JOIN REALM</>
-                           )}
+                            {joiningId === world.worldId ? (
+                             <span className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin"/> {joinStep}
+                             </span>
+                            ) : isJoined ? (
+                              <>CONTINUE <ChevronRightIcon /></>
+                            ) : isFull ? (
+                              <><Lock className="w-3 h-3"/> FULL</>
+                            ) : (
+                              <>JOIN REALM</>
+                            )}
                         </button>
 
                       </div>
@@ -266,14 +267,14 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
 
         {/* FOOTER */}
         <div className="p-4 bg-[#1a2332] border-t border-[#4b5563] text-center text-xs text-gray-500">
-          New worlds are generated automatically via Voronoi Algorithm every 48 hours.
+          Minting a Kingdom requires a small amount of GO/ETH gas fee on Hardhat Network.
         </div>
       </div>
     </div>
   );
 };
 
-// Helper Icon kecil
+// Helper Icon
 const ChevronRightIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
     <path d="m9 18 6-6-6-6"/>
