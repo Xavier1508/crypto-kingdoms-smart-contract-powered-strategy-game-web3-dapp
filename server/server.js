@@ -2,8 +2,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const http = require('http'); // Import module HTTP bawaan Node
-const { Server } = require('socket.io'); // Import Socket.io
+const http = require('http');
+const { Server } = require('socket.io');
 
 const { connectDB } = require('./config/db');
 const World = require('./models/World');
@@ -84,57 +84,52 @@ const initializeGameWorld = async () => {
   }
 };
 
-const GAME_TICK_RATE = 2000; // Cek setiap 2 detik biar responsif
+const GAME_TICK_RATE = 2000;
 
 setInterval(async () => {
   try {
-    const activeWorlds = await World.find({ status: 'ACTIVE' });
+    // [OPTIMASI 1] GUNAKAN .select() UNTUK MENGABAIKAN DATA MAP RAKSASA
+    // Kita hanya butuh playerData untuk update resource
+    const activeWorlds = await World.find({ status: 'ACTIVE' })
+                                    .select('worldId playerData status'); 
 
     for (const world of activeWorlds) {
       if (!world.playerData) continue;
 
-      let updates = {};
       let hasChanges = false;
       const now = new Date();
 
+      // Loop Player
       for (const [userId, pData] of world.playerData) {
         
-        // A. PRODUKSI RESOURCE (Logika lama Anda)
-        const baseRate = 5; 
+        // 1. Produksi Resource
+        const baseRate = 10; 
         pData.resources.food += baseRate;
         pData.resources.wood += baseRate;
         pData.resources.stone += baseRate / 2;
         pData.resources.gold += baseRate / 5;
 
-        // B. PROSES TRAINING QUEUE [BARU]
+        // 2. Proses Queue Training
         if (pData.trainingQueue && pData.trainingQueue.length > 0) {
-            // Filter queue yang SUDAH SELESAI
-            const finishedQueue = pData.trainingQueue.filter(q => new Date(q.endTime) <= now);
+            // Cek queue pertama saja untuk efisiensi
+            // Asumsi: Queue diproses berurutan
+            const queueItem = pData.trainingQueue[0];
             
-            // Filter queue yang MASIH BERJALAN
-            const activeQueue = pData.trainingQueue.filter(q => new Date(q.endTime) > now);
-
-            if (finishedQueue.length > 0) {
-                // Pindahkan pasukan yang jadi
-                finishedQueue.forEach(item => {
-                    pData.troops[item.troopType] += item.amount;
-                    console.log(`✅ Training Complete for ${userId}: ${item.amount} ${item.troopType}`);
-                });
-
-                // Update sisa antrian
-                pData.trainingQueue = activeQueue;
-                hasChanges = true; // Trigger save
+            if (new Date(queueItem.endTime) <= now) {
+                // Selesai -> Tambah Pasukan
+                pData.troops[queueItem.troopType] += queueItem.amount;
+                console.log(`✅ Training Done: ${userId} -> ${queueItem.troopType}`);
+                
+                // Hapus dari antrian
+                pData.trainingQueue.shift(); 
+                hasChanges = true;
             }
         }
 
-        // C. HITUNG POWER TOTAL
-        const troopPower = (pData.troops.infantry * 1) + 
-                           (pData.troops.archer * 1.5) + 
-                           (pData.troops.cavalry * 2) + 
-                           (pData.troops.siege * 2.5);
+        // 3. Update Power
+        const troopPower = (pData.troops.infantry * 1) + (pData.troops.archer * 1.5) + (pData.troops.cavalry * 2) + (pData.troops.siege * 2.5);
         pData.power = Math.floor(troopPower);
         
-        // Tandai ada perubahan resource (selalu true karena produksi jalan)
         hasChanges = true; 
       }
 

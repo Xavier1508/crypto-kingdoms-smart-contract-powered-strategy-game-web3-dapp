@@ -41,12 +41,12 @@ const TroopTrainPanel = ({ onClose, onTrain, playerRes, trainingQueue }) => {
             </div>
 
             {/* STATUS ANTRIAN (QUEUE) */}
-            {trainingQueue && trainingQueue.length > 0 && (
+            {Array.isArray(trainingQueue) && trainingQueue.length > 0 && (
                 <div className="bg-blue-900/20 border border-blue-500/30 rounded p-3 mb-4">
                     <h4 className="text-blue-300 text-xs font-bold uppercase mb-2 flex items-center gap-1">
                         <Loader2 className="w-3 h-3 animate-spin" /> Training in Progress
                     </h4>
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-40 overflow-y-auto"> {/* Tambah scroll jika antrian panjang */}
                         {trainingQueue.map((q, idx) => (
                             <QueueItem key={idx} queue={q} />
                         ))}

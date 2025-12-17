@@ -1,8 +1,8 @@
+// client/src/pages/InGamePage.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client'; // Import Socket Client
+import { io } from 'socket.io-client'; 
 
-// Import Component
 import GameMap from '../components/ingamepageComp/GameMap';
 import GameUI from '../components/ingamepageComp/uiParts/GameUI';
 import { TILE_NAMES, TILE_DESCRIPTIONS } from '../components/ingamepageComp/mapModules/MapConstants';
@@ -21,93 +21,7 @@ const InGamePage = () => {
     const [selectedTile, setSelectedTile] = useState(null);
     const [initialCameraPos, setInitialCameraPos] = useState(null);
 
-    const handleJumpHomeCastle = () => {
-        if (myStats && myStats.castleX !== undefined && myStats.castleY !== undefined) {
-            console.log(`Jumping to Home Castle: ${myStats.castleX}, ${myStats.castleY}`);
-            if (mapRef.current) {
-                mapRef.current.centerOnTile(myStats.castleX, myStats.castleY);
-            }
-        } else {
-            alert("Castle coordinates not found!");
-        }
-    };
-
-    const handleTrainTroops = async (troopType, amount) => {
-        const currentWorldId = localStorage.getItem('currentWorldId');
-        const userId = localStorage.getItem('userId');
-
-        if (!currentWorldId || !userId) return;
-
-        try {
-            const res = await fetch('http://localhost:5000/api/worlds/train', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    worldId: currentWorldId,
-                    userId: userId,
-                    troopType: troopType,
-                    amount: amount
-                })
-            });
-
-            const data = await res.json();
-            
-            if (data.success) {
-                console.log("Training Started:", data.msg);
-                // Kita tidak perlu manual update state disini, 
-                // karena server akan emit socket 'resource_update' 
-                // yang sudah kita listen di useEffect.
-            } else {
-                alert("Training Failed: " + data.error);
-            }
-
-        } catch (err) {
-            console.error("Training Error:", err);
-        }
-    };
-
-    const handleConquerTile = async (targetX, targetY) => {
-        const currentWorldId = localStorage.getItem('currentWorldId');
-        const userId = localStorage.getItem('userId');
-
-        if (!currentWorldId || !userId) return;
-
-        try {
-            // Tampilkan loading visual sementara (opsional)
-            console.log(`⚔️ Attempting to conquer (${targetX}, ${targetY})...`);
-
-            const res = await fetch('http://localhost:5000/api/worlds/conquer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    worldId: currentWorldId,
-                    userId: userId,
-                    targetX: targetX,
-                    targetY: targetY
-                })
-            });
-
-            const data = await res.json();
-            
-            if (data.success) {
-                // Sukses! Tutup panel info atau beri notifikasi
-                alert(`Victory! ${data.msg}`);
-                handleCloseTileInfo(); 
-                
-                // Fetch map ulang tidak perlu manual karena Socket akan handle
-            } else {
-                // Gagal (Misal: Power kurang atau tidak nyambung)
-                alert("Conquest Failed: " + data.error);
-            }
-
-        } catch (err) {
-            console.error("Conquer Error:", err);
-            alert("Connection Error during conquest.");
-        }
-    };
-
-
-    // Fungsi Fetch Map (Dipisahkan agar bisa dipanggil ulang saat update)
+    // Fungsi Fetch Map
     const fetchMapData = async () => {
         const currentWorldId = localStorage.getItem('currentWorldId');
         if (!currentWorldId) return;
@@ -129,14 +43,148 @@ const InGamePage = () => {
                 mapSize: data.mapSize
             }));
             
-            return data; // Return data untuk usage lain jika perlu
+            const myId = localStorage.getItem('userId');
+            if (data.playerData && data.playerData[myId]) {
+                setMyStats(data.playerData[myId]);
+            }
+
+            return data; 
 
         } catch (err) {
             console.error("Fetch Error:", err);
         }
     };
 
-    // --- 1. INITIAL LOAD & SOCKET SETUP ---
+    const handleJumpHomeCastle = () => {
+        if (myStats && myStats.castleX !== undefined && myStats.castleY !== undefined) {
+            console.log(`Jumping to Home Castle: ${myStats.castleX}, ${myStats.castleY}`);
+            if (mapRef.current) {
+                mapRef.current.centerOnTile(myStats.castleX, myStats.castleY);
+            }
+        } else {
+            alert("Castle coordinates not found!");
+        }
+    };
+
+    // --- [UPDATED FUNCTION] Optimistic UI + Error Rollback ---
+    const handleTrainTroops = async (troopType, amount) => {
+        const currentWorldId = localStorage.getItem('currentWorldId');
+        const userId = localStorage.getItem('userId');
+
+        if (!currentWorldId || !userId) return;
+
+        // 1. DATA SIMULASI (Optimistic)
+        const SPECS = {
+            infantry: { food: 10, wood: 10, gold: 0, timePerUnit: 2000 },
+            archer:   { food: 15, wood: 20, gold: 2, timePerUnit: 3000 },
+            cavalry:  { food: 25, wood: 15, gold: 5, timePerUnit: 5000 },
+            siege:    { food: 20, wood: 30, gold: 10, timePerUnit: 6000 }
+        };
+        const cost = {
+            food: SPECS[troopType].food * amount,
+            wood: SPECS[troopType].wood * amount,
+            gold: SPECS[troopType].gold * amount
+        };
+
+        // 2. UPDATE UI DULUAN (Supaya terasa cepat)
+        setMyStats(prev => {
+            if(!prev) return prev;
+            
+            const now = new Date();
+            const lastQueue = prev.trainingQueue && prev.trainingQueue.length > 0 
+                ? prev.trainingQueue[prev.trainingQueue.length - 1] 
+                : null;
+            const startTime = lastQueue ? new Date(lastQueue.endTime) : now;
+            const endTime = new Date(startTime.getTime() + (SPECS[troopType].timePerUnit * amount));
+
+            const newQueue = {
+                troopType,
+                amount: parseInt(amount),
+                startTime,
+                endTime
+            };
+
+            return {
+                ...prev,
+                resources: {
+                    ...prev.resources,
+                    food: prev.resources.food - cost.food,
+                    wood: prev.resources.wood - cost.wood,
+                    gold: prev.resources.gold - cost.gold
+                },
+                trainingQueue: prev.trainingQueue ? [...prev.trainingQueue, newQueue] : [newQueue]
+            };
+        });
+
+        // 3. KIRIM KE SERVER
+        try {
+            const res = await fetch('http://localhost:5000/api/worlds/train', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    worldId: currentWorldId,
+                    userId: userId,
+                    troopType: troopType,
+                    amount: amount
+                })
+            });
+
+            const data = await res.json();
+            
+            // 4. ERROR HANDLING (Rollback State) [DIIMPLEMENTASIKAN]
+            if (!data.success) {
+                console.error("Training Rejected by Server:", data.error);
+                alert("Training Failed: " + data.error);
+                
+                // Paksa fetch ulang dari server untuk membatalkan perubahan UI yang salah
+                fetchMapData(); 
+            } else {
+                console.log("Server confirmed training.");
+            }
+
+        } catch (err) {
+            console.error("Training Network Error:", err);
+            alert("Connection Failed. Reverting state.");
+            fetchMapData(); // Rollback jika koneksi putus
+        }
+    };
+
+    const handleConquerTile = async (targetX, targetY) => {
+        const currentWorldId = localStorage.getItem('currentWorldId');
+        const userId = localStorage.getItem('userId');
+
+        if (!currentWorldId || !userId) return;
+
+        try {
+            console.log(`⚔️ Attempting to conquer (${targetX}, ${targetY})...`);
+
+            const res = await fetch('http://localhost:5000/api/worlds/conquer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    worldId: currentWorldId,
+                    userId: userId,
+                    targetX: targetX,
+                    targetY: targetY
+                })
+            });
+
+            const data = await res.json();
+            
+            if (data.success) {
+                alert(`Victory! ${data.msg}`);
+                handleCloseTileInfo(); 
+            } else {
+                alert("Conquest Failed: " + data.error);
+            }
+
+        } catch (err) {
+            console.error("Conquer Error:", err);
+            alert("Connection Error during conquest.");
+        }
+    };
+
+    // --- INITIAL LOAD & SOCKET SETUP ---
     useEffect(() => {
         const currentWorldId = localStorage.getItem('currentWorldId');
         const userId = localStorage.getItem('userId');
@@ -146,7 +194,6 @@ const InGamePage = () => {
             return;
         }
 
-        // A. Load Data Awal
         const initGame = async () => {
             setLoading(true);
             const data = await fetchMapData();
@@ -178,11 +225,8 @@ const InGamePage = () => {
                 setWorldData(prev => {
                     if (!prev.ownershipMap) return prev;
                     
-                    // Clone array 2D (Shallow clone barisnya biar cepat)
                     const newOwnership = [...prev.ownershipMap];
-                    // Clone baris spesifik yang berubah
                     newOwnership[data.x] = [...newOwnership[data.x]];
-                    // Update nilai
                     newOwnership[data.x][data.y] = data.newOwnerId;
 
                     return {
@@ -191,7 +235,6 @@ const InGamePage = () => {
                     };
                 });
             } else {
-                // Jika update besar (misal player baru join), baru fetch ulang
                 fetchMapData(); 
             }
         });
@@ -202,7 +245,6 @@ const InGamePage = () => {
             setWorldData(prev => {
                 const newPlayerData = { ...prev.playerData, ...data.playerData };
                 
-                // Update stats saya sendiri
                 if (newPlayerData[myId]) {
                     setMyStats(newPlayerData[myId]);
                 }
@@ -214,7 +256,6 @@ const InGamePage = () => {
             });
         });
 
-        // Cleanup
         return () => {
             socket.disconnect();
         };
@@ -228,7 +269,7 @@ const InGamePage = () => {
         const myUserId = localStorage.getItem('userId');
         
         let ownerName = null;
-        let ownerCastle = null; // Ini penting untuk fitur "Locate Enemy"
+        let ownerCastle = null; 
         let ownerColor = null;
         let ownerPower = 0;
         let isEnemy = false;
@@ -237,7 +278,7 @@ const InGamePage = () => {
             const pData = worldData.playerData[ownerId];
             if (pData) {
                 ownerName = pData.username || "Unknown Lord"; 
-                ownerCastle = { x: pData.castleX, y: pData.castleY }; // <--- Pastikan ini ada
+                ownerCastle = { x: pData.castleX, y: pData.castleY }; 
                 ownerColor = pData.color;
                 ownerPower = pData.power || 0;
                 
@@ -247,7 +288,6 @@ const InGamePage = () => {
             }
         }
 
-        // Tentukan Deskripsi Berdasarkan Status
         let description = TILE_DESCRIPTIONS[type];
         if (ownerId) {
             description = isEnemy 
@@ -258,11 +298,8 @@ const InGamePage = () => {
         setSelectedTile({
             x, y, type,
             name: TILE_NAMES[type] || "Unknown Region",
-            description: description, // Deskripsi dinamis
-            
-            // Logic Claim: Bisa diclaim jika (Tanah Kosong) ATAU (Punya Musuh & Kita Punya Power)
+            description: description,
             isClaimable: ([1, 2, 3].includes(type) && !ownerId) || (isEnemy), 
-            
             ownerId,
             ownerName, 
             ownerCastle, 

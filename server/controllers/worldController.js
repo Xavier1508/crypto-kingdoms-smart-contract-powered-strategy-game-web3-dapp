@@ -120,7 +120,6 @@ const joinWorld = async (req, res) => {
         }).lean();
 
         if (outerProvinces.length === 0) {
-            // Fallback: Jika database province kosong/error, coba spawn manual di range aman
             console.warn("⚠️ Warning: No outer provinces found. Using fallback spawn range.");
         }
 
@@ -132,7 +131,7 @@ const joinWorld = async (req, res) => {
         let spawnFound = false;
         let finalX, finalY;
         let attempt = 0;
-        const MAX_ATTEMPTS = 500; // Naikkan limit attempt biar pasti dapat
+        const MAX_ATTEMPTS = 500;
 
         while (!spawnFound && attempt < MAX_ATTEMPTS) {
             attempt++;
@@ -199,7 +198,6 @@ const joinWorld = async (req, res) => {
         
         if (!world.playerData) world.playerData = new Map();
 
-        // Set Data Baru (Override yang lama jika corrupt)
         const newPlayerData = {
             username: realUsername,
             color: playerColor,
@@ -209,7 +207,7 @@ const joinWorld = async (req, res) => {
             // Resource Awal
             resources: { food: 1000, wood: 1000, stone: 500, gold: 200 },
             // Pasukan Awal
-            troops: { infantry: 100, archer: 0, cavalry: 0, siege: 0 }
+            troops: { infantry: 350, archer: 250, cavalry: 150, siege: 100 }
         };
 
         world.playerData.set(userId, newPlayerData);
@@ -438,21 +436,21 @@ const trainTroops = async (req, res) => {
     try {
         const { worldId, userId, troopType, amount } = req.body;
         
-        // Konstanta Harga & Waktu
         const SPECS = {
-            infantry: { food: 10, wood: 10, gold: 0, timePerUnit: 2000 }, // 2 detik per unit
+            infantry: { food: 10, wood: 10, gold: 0, timePerUnit: 2000 },
             archer:   { food: 15, wood: 20, gold: 2, timePerUnit: 3000 },
             cavalry:  { food: 25, wood: 15, gold: 5, timePerUnit: 5000 },
             siege:    { food: 20, wood: 30, gold: 10, timePerUnit: 6000 }
         };
 
-        const world = await World.findOne({ worldId });
+        // 1. Fetch Ringan (Player only)
+        const world = await World.findOne({ worldId }, { [`playerData.${userId}`]: 1 });
+        
         if (!world) return res.status(404).json({ error: "World not found" });
-
         const pData = world.playerData.get(userId);
         if (!pData) return res.status(404).json({ error: "Player not found" });
 
-        // Cek Resource
+        // 2. Validasi Resource
         const costFood = SPECS[troopType].food * amount;
         const costWood = SPECS[troopType].wood * amount;
         const costGold = SPECS[troopType].gold * amount;
@@ -461,43 +459,56 @@ const trainTroops = async (req, res) => {
             return res.status(400).json({ error: "Not enough resources!" });
         }
 
-        // Cek apakah sudah ada antrian? (Opsional: Limit 1 antrian)
-        // if (pData.trainingQueue.length > 0) return res.status(400).json({ error: "Barracks busy!" });
-
-        // 1. Kurangi Resource (Bayar di muka)
-        pData.resources.food -= costFood;
-        pData.resources.wood -= costWood;
-        pData.resources.gold -= costGold;
-
-        // 2. Hitung Waktu Selesai
+        // 3. Hitung Waktu
         const totalTimeMs = SPECS[troopType].timePerUnit * amount;
-        const endTime = new Date(Date.now() + totalTimeMs);
+        const lastQueue = pData.trainingQueue.length > 0 ? pData.trainingQueue[pData.trainingQueue.length - 1] : null;
+        const startTime = lastQueue ? new Date(lastQueue.endTime) : new Date();
+        const endTime = new Date(startTime.getTime() + totalTimeMs);
 
-        // 3. Masukkan ke Queue (Bukan langsung ke troops)
-        pData.trainingQueue.push({
+        const newQueueItem = {
             troopType,
             amount: parseInt(amount),
-            startTime: new Date(),
+            startTime: startTime,
             endTime: endTime
-        });
+        };
 
-        world.markModified('playerData');
-        await world.save();
+        // 4. Atomic Update
+        await World.updateOne(
+            { worldId: worldId },
+            {
+                $inc: {
+                    [`playerData.${userId}.resources.food`]: -costFood,
+                    [`playerData.${userId}.resources.wood`]: -costWood,
+                    [`playerData.${userId}.resources.gold`]: -costGold,
+                },
+                $push: {
+                    [`playerData.${userId}.trainingQueue`]: newQueueItem
+                }
+            }
+        );
 
-        // 4. Emit update resource (Socket logic tetap sama)
+        // 5. Broadcast Socket (Realtime Sync) [DIIMPLEMENTASIKAN]
         const io = req.app.get('io');
         if (io) {
+            // Ambil data terbaru setelah update untuk memastikan frontend sinkron
+            const updatedWorld = await World.findOne({ worldId }, { [`playerData.${userId}`]: 1 }).lean();
+            const updatedPlayerData = updatedWorld.playerData[userId];
+
+            const partialUpdate = {};
+            partialUpdate[userId] = updatedPlayerData;
+
             io.to(`world_${worldId}`).emit('resource_update', {
-                worldId: world.worldId,
-                playerData: world.playerData
+                worldId: worldId,
+                playerData: partialUpdate,
+                msg: "Instant Sync"
             });
         }
 
-        res.json({ success: true, msg: `Training ${amount} ${troopType} started!`, endTime });
+        res.json({ success: true, msg: `Training started!`, queue: newQueueItem });
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: "Training failed server side" });
+        res.status(500).json({ error: "Training failed" });
     }
 };
 
