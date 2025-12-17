@@ -21,6 +21,17 @@ const InGamePage = () => {
     const [selectedTile, setSelectedTile] = useState(null);
     const [initialCameraPos, setInitialCameraPos] = useState(null);
 
+    const handleJumpHomeCastle = () => {
+        if (myStats && myStats.castleX !== undefined && myStats.castleY !== undefined) {
+            console.log(`Jumping to Home Castle: ${myStats.castleX}, ${myStats.castleY}`);
+            if (mapRef.current) {
+                mapRef.current.centerOnTile(myStats.castleX, myStats.castleY);
+            }
+        } else {
+            alert("Castle coordinates not found!");
+        }
+    };
+
     const handleTrainTroops = async (troopType, amount) => {
         const currentWorldId = localStorage.getItem('currentWorldId');
         const userId = localStorage.getItem('userId');
@@ -214,25 +225,22 @@ const InGamePage = () => {
 
         const type = worldData.mapGrid[x][y];
         const ownerId = worldData.ownershipMap?.[x]?.[y];
-        const myUserId = localStorage.getItem('userId'); // Ambil ID kita sendiri
+        const myUserId = localStorage.getItem('userId');
         
         let ownerName = null;
-        let ownerCastle = null;
+        let ownerCastle = null; // Ini penting untuk fitur "Locate Enemy"
         let ownerColor = null;
-        let ownerPower = 0; // Default 0
+        let ownerPower = 0;
         let isEnemy = false;
 
-        // Cek data pemilik tile
         if (ownerId && worldData.playerData) {
             const pData = worldData.playerData[ownerId];
             if (pData) {
-                // AMBIL USERNAME ASLI DARI DB
                 ownerName = pData.username || "Unknown Lord"; 
-                ownerCastle = { x: pData.castleX, y: pData.castleY };
+                ownerCastle = { x: pData.castleX, y: pData.castleY }; // <--- Pastikan ini ada
                 ownerColor = pData.color;
-                ownerPower = pData.power || 0; // Ambil Total Power Player
+                ownerPower = pData.power || 0;
                 
-                // Cek apakah ini musuh?
                 if (ownerId !== myUserId) {
                     isEnemy = true;
                 }
@@ -297,6 +305,7 @@ const InGamePage = () => {
                 playerStats={myStats}
                 onTrainTroops={handleTrainTroops}
                 onConquerTile={handleConquerTile}
+                onJumpHome={handleJumpHomeCastle}
             />
         </div>
     );

@@ -74,6 +74,10 @@ const regenerateWorldMap = async (req, res) => {
 const joinWorld = async (req, res) => {
     try {
         const { worldId, userId } = req.body;
+        
+        // 1. Validasi Input
+        if (!worldId || !userId) return res.status(400).json({ msg: "Invalid Data" });
+
         const world = await World.findOne({ worldId: worldId });
         const userDocs = await User.findById(userId);
         const realUsername = userDocs ? userDocs.username : "Unknown Lord"; 
@@ -81,28 +85,43 @@ const joinWorld = async (req, res) => {
         if (!world) return res.status(404).json({ msg: "World not found" });
         
         const io = req.app.get('io'); 
-        const isJoined = world.players.some(p => p.toString() === userId);
-        
-        if (isJoined) {
-            let pData = world.playerData.get(userId) || world.playerData[userId];
+
+        // --- [LOGIKA PERBAIKAN START] ---
+        // Kita cek Data Player secara mendalam, bukan cuma cek ID di array
+        let pData = null;
+        if (world.playerData) {
+            pData = world.playerData.get(userId) || world.playerData[userId];
+        }
+
+        // Cek apakah castle user benar-benar ada koordinatnya
+        const hasValidCastle = pData && pData.castleX !== undefined && pData.castleY !== undefined;
+
+        // JIKA USER SUDAH PUNYA CASTLE VALID -> LANGSUNG MASUK (WELCOME BACK)
+        if (hasValidCastle) {
+            console.log(`User ${realUsername} returning to castle at ${pData.castleX}, ${pData.castleY}`);
             return res.json({ 
                 msg: "Welcome back", 
                 worldId, 
-                spawnLocation: pData ? { x: pData.castleX, y: pData.castleY } : null 
+                spawnLocation: { x: pData.castleX, y: pData.castleY },
+                playerData: pData // Kirim data lengkap biar frontend ga bingung
             });
         }
+        // JIKA TIDAK PUNYA CASTLE (Meskipun ID ada di list players) -> LANJUT KE PROSES SPAWN DI BAWAH
+        // --- [LOGIKA PERBAIKAN END] ---
 
-        if (world.players.length >= world.maxPlayers) {
+        if (world.players.length >= world.maxPlayers && !world.players.includes(userId)) {
             return res.status(400).json({ msg: "World Full" });
         }
 
+        // --- PROSES MENCARI LAHAN (SPAWN ALGORITHM) ---
         // Get outer provinces
         const outerProvinces = await Province.find({
             worldId, layer: 'outer', isUnlocked: true
         }).lean();
 
         if (outerProvinces.length === 0) {
-            return res.status(500).json({ msg: "No spawn zones available" });
+            // Fallback: Jika database province kosong/error, coba spawn manual di range aman
+            console.warn("⚠️ Warning: No outer provinces found. Using fallback spawn range.");
         }
 
         // Init ownership if needed
@@ -113,37 +132,46 @@ const joinWorld = async (req, res) => {
         let spawnFound = false;
         let finalX, finalY;
         let attempt = 0;
-        const MAX_ATTEMPTS = 300;
+        const MAX_ATTEMPTS = 500; // Naikkan limit attempt biar pasti dapat
 
         while (!spawnFound && attempt < MAX_ATTEMPTS) {
             attempt++;
             
-            // Pick random outer province
-            const prov = outerProvinces[Math.floor(Math.random() * outerProvinces.length)];
-            
-            // Random position near province center
-            const angle = Math.random() * 2 * Math.PI;
-            const distance = Math.random() * 35;
-            const cx = Math.round(prov.centerX + Math.cos(angle) * distance);
-            const cy = Math.round(prov.centerY + Math.sin(angle) * distance);
+            let cx, cy;
 
-            // Bounds check
-            if (cx < 3 || cx >= world.mapSize - 3 || cy < 3 || cy >= world.mapSize - 3) continue;
+            if (outerProvinces.length > 0) {
+                // Pick random outer province
+                const prov = outerProvinces[Math.floor(Math.random() * outerProvinces.length)];
+                // Random position near province center
+                const angle = Math.random() * 2 * Math.PI;
+                const distance = Math.random() * 35;
+                cx = Math.round(prov.centerX + Math.cos(angle) * distance);
+                cy = Math.round(prov.centerY + Math.sin(angle) * distance);
+            } else {
+                // Fallback Logic (Random di pinggiran map 400x400)
+                // Spawn di range 50-350
+                cx = Math.floor(Math.random() * 300) + 50;
+                cy = Math.floor(Math.random() * 300) + 50;
+            }
 
-            // Check 3x3 area
+            // Bounds check (Safety Margin 5 pixel dari ujung)
+            if (cx < 5 || cx >= world.mapSize - 5 || cy < 5 || cy >= world.mapSize - 5) continue;
+
+            // Check 3x3 area availability
             let areaClear = true;
-            for (let i = -1; i <= 1; i++) {
-                for (let j = -1; j <= 1; j++) {
+            for (let i = -2; i <= 2; i++) { // Cek radius lebih luas (5x5) biar aman
+                for (let j = -2; j <= 2; j++) {
                     const checkX = cx + i;
                     const checkY = cy + j;
                     
-                    if (!world.mapGrid[checkX] || !world.ownershipMap[checkX]) {
-                        areaClear = false; 
-                        break;
-                    }
+                    // Pastikan grid ada
+                    if (!world.mapGrid[checkX]) { areaClear = false; break; }
 
+                    // Cek Tipe Tanah (Harus Zone 1/Grass)
                     const tile = world.mapGrid[checkX][checkY];
-                    if (tile !== 1) { areaClear = false; break; } // Must be Zone 1 (outer grass)
+                    if (tile !== 1) { areaClear = false; break; } 
+                    
+                    // Cek Kepemilikan (Harus Kosong/Null)
                     if (world.ownershipMap[checkX][checkY]) { areaClear = false; break; }
                 }
                 if (!areaClear) break;
@@ -157,24 +185,36 @@ const joinWorld = async (req, res) => {
         }
 
         if (!spawnFound) {
-            return res.status(400).json({ msg: "No spawn space available" });
+            console.error("❌ Failed to find spawn location after", MAX_ATTEMPTS, "attempts");
+            return res.status(400).json({ msg: "No safe spawn space available. Please regenerate world." });
         }
 
-        // Create player
+        // --- CREATE / UPDATE PLAYER DATA ---
         const playerColor = generatePlayerColor(); 
-        world.players.push(userId);
+        
+        // Hanya push jika ID belum ada (untuk mencegah duplikasi array)
+        if (!world.players.some(p => p.toString() === userId)) {
+            world.players.push(userId);
+        }
         
         if (!world.playerData) world.playerData = new Map();
 
-        world.playerData.set(userId, {
+        // Set Data Baru (Override yang lama jika corrupt)
+        const newPlayerData = {
             username: realUsername,
             color: playerColor,
             castleX: finalX,
             castleY: finalY,
             power: 1000,
+            // Resource Awal
             resources: { food: 1000, wood: 1000, stone: 500, gold: 200 },
+            // Pasukan Awal
             troops: { infantry: 100, archer: 0, cavalry: 0, siege: 0 }
-        });
+        };
+
+        world.playerData.set(userId, newPlayerData);
+
+        // Update Ownership Map (3x3 area jadi milik user)
         for (let i = -1; i <= 1; i++) {
             for (let j = -1; j <= 1; j++) {
                 world.ownershipMap[finalX + i][finalY + j] = userId;
@@ -183,12 +223,17 @@ const joinWorld = async (req, res) => {
         
         world.markModified('ownershipMap');
         world.markModified('playerData');
+        world.markModified('players');
+        
         await world.save();
+
+        console.log(`✅ NEW KINGDOM FOUNDED: ${realUsername} at [${finalX}, ${finalY}]`);
 
         if (io) {
             io.to(`world_${worldId}`).emit('map_updated', {
                 type: 'NEW_PLAYER',
                 userId: userId,
+                username: realUsername,
                 castleX: finalX,
                 castleY: finalY,
                 color: playerColor
@@ -199,10 +244,12 @@ const joinWorld = async (req, res) => {
             msg: "Kingdom Founded!", 
             worldId,
             spawnLocation: { x: finalX, y: finalY },
-            playerColor: playerColor
+            playerColor: playerColor,
+            playerData: newPlayerData
         });
 
     } catch (err) {
+        console.error("Join Error:", err);
         res.status(500).send('Server Error: ' + err.message);
     }
 };

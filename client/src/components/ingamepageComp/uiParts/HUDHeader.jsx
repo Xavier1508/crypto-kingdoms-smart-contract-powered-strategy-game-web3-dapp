@@ -1,8 +1,7 @@
-// client/src/components/ingamePageComp/uiParts/HUDHeader.jsx
 import React from 'react';
-import { Sword, Home, LogOut, Globe } from 'lucide-react';
+import { Sword, Home, LogOut, Globe, MapPin } from 'lucide-react'; // Import MapPin atau icon lain
 
-const HUDHeader = ({ playerStats, worldInfo, onBack, onLogout }) => {
+const HUDHeader = ({ playerStats, worldInfo, onBack, onLogout, onJumpHomeCastle }) => {
     const formatNum = (num) => {
         if (!num) return 0;
         if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -17,16 +16,27 @@ const HUDHeader = ({ playerStats, worldInfo, onBack, onLogout }) => {
     return (
         <header className="pointer-events-auto bg-[#1f2937]/90 backdrop-blur border-b border-[#4b5563] px-4 py-2 flex items-center justify-between shadow-lg z-50">
             
-            {/* KIRI: Profile */}
+            {/* KIRI: Profile & Home Jump */}
             <div className="flex items-center gap-4 min-w-[200px]">
                 <div className="flex flex-col">
                     <h2 className="text-[#d4af37] font-bold font-['Cinzel'] leading-none text-lg">
                         {playerStats?.username || "COMMANDER"}
                     </h2>
-                    <div className="text-xs text-gray-400 flex items-center gap-2 mt-1">
+                    <div className="text-xs text-gray-400 flex items-center gap-3 mt-1">
                         <span className="flex items-center gap-1 text-blue-400">
                             <Globe className="w-3 h-3" /> {worldName}
                         </span>
+                        
+                        {/* [FITUR BARU 1] Tombol Jump Home Kecil & Elegan */}
+                        <button 
+                            onClick={onJumpHomeCastle}
+                            className="flex items-center gap-1 text-[#d4af37] hover:text-white transition-colors cursor-pointer bg-black/30 px-2 py-0.5 rounded border border-[#d4af37]/30 hover:border-[#d4af37]"
+                            title="Jump to Capital"
+                        >
+                            <MapPin className="w-3 h-3" />
+                            <span className="font-bold">HOME</span>
+                        </button>
+
                         <span className="flex items-center gap-1">
                              <Sword className="w-3 h-3 text-red-500" /> 
                              Pow: <span className="text-white font-mono font-bold">{formatNum(power)}</span>
@@ -35,7 +45,7 @@ const HUDHeader = ({ playerStats, worldInfo, onBack, onLogout }) => {
                 </div>
             </div>
 
-            {/* TENGAH: RESOURCE BAR */}
+            {/* ... (TENGAH: RESOURCE BAR - TETAP SAMA) ... */}
             <div className="flex items-center gap-4 bg-black/40 px-6 py-2 rounded-full border border-gray-700">
                 <div className="flex items-center gap-2 text-yellow-100 min-w-[70px]" title="Food">
                     <span className="text-lg">🌽</span> 

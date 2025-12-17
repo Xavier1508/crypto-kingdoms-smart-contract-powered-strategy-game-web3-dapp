@@ -16,7 +16,8 @@ const GameUI = ({
     onCloseTileInfo, 
     onJumpToCoord,
     onTrainTroops,
-    onConquerTile
+    onConquerTile,
+    onJumpHomeCastle,
 }) => {
   
   const [activePanel, setActivePanel] = useState(null);
@@ -33,7 +34,8 @@ const GameUI = ({
         playerStats={playerStats} 
         worldInfo={worldInfo}
         onBack={onBack} 
-        onLogout={onLogout} 
+        onLogout={onLogout}
+        onJumpHomeCastle={onJumpHomeCastle}
       />
 
       {/* 2. LEFT PANEL: TROOP STATUS [BARU] */}

@@ -1,6 +1,6 @@
 // client/src/components/ingamePageComp/uiParts/TileInfoPanel.jsx
 import React from 'react';
-import { Shield, Sword, Eye, XCircle, Zap, Skull } from 'lucide-react';
+import { Shield, Sword, Eye, XCircle, Zap, Map } from 'lucide-react';
 
 const TileInfoPanel = ({ selectedTile, onClose, onJumpToCoord, onConquer }) => {
     if (!selectedTile) return null;
@@ -12,7 +12,7 @@ const TileInfoPanel = ({ selectedTile, onClose, onJumpToCoord, onConquer }) => {
     const calculateEffectivePower = () => {
         if (!selectedTile.ownerName) return null; // Jika wilderness, skip
 
-        if (!selectedTile.ownerCastle) return null; // Safety check
+        if (!selectedTile.ownerCastle) return null;
 
         // Hitung selisih jarak X dan Y
         const diffX = Math.abs(selectedTile.x - selectedTile.ownerCastle.x);
@@ -96,11 +96,11 @@ const TileInfoPanel = ({ selectedTile, onClose, onJumpToCoord, onConquer }) => {
                             <div className={`text-lg font-bold flex items-center gap-2 mb-2
                                 ${selectedTile.isEnemy ? 'text-red-500' : 'text-[#00d4ff]'}`}>
                                 <Shield className="w-4 h-4" /> 
-                                {selectedTile.ownerName} {/* Nama Asli dari DB */}
+                                {selectedTile.ownerName}
                             </div>
                             
-                            {/* PANEL ANGKA POWER */}
-                            <div className="w-full bg-black/30 p-2 rounded border border-gray-700 flex flex-col gap-1">
+                            {/* POWER STATS (TETAP SAMA) */}
+                            <div className="w-full bg-black/30 p-2 rounded border border-gray-700 flex flex-col gap-1 mb-2">
                                 {powerStats.isCastle ? (
                                     <div className="flex justify-between items-center text-yellow-400 font-bold text-sm">
                                         <span className="flex items-center gap-1"><Zap className="w-3 h-3"/> Total Power</span>
@@ -108,17 +108,14 @@ const TileInfoPanel = ({ selectedTile, onClose, onJumpToCoord, onConquer }) => {
                                     </div>
                                 ) : (
                                     <>
-                                        {/* Baris 1: Total Power Pusat */}
                                         <div className="flex justify-between text-[10px] text-gray-400">
                                             <span>Base Power:</span>
                                             <span>{formatNum(powerStats.total)}</span>
                                         </div>
-                                        {/* Baris 2: Penalty Jarak */}
                                         <div className="flex justify-between text-[10px] text-red-400">
                                             <span>Distance Penalty:</span>
                                             <span>-{powerStats.penalty}</span>
                                         </div>
-                                        {/* Baris 3: Power Efektif (YANG PENTING) */}
                                         <div className="border-t border-gray-600 mt-1 pt-1 flex justify-between font-bold text-sm text-white">
                                             <span>Effective Power:</span>
                                             <span className={selectedTile.isEnemy ? "text-red-400" : "text-green-400"}>
@@ -128,6 +125,16 @@ const TileInfoPanel = ({ selectedTile, onClose, onJumpToCoord, onConquer }) => {
                                     </>
                                 )}
                             </div>
+
+                            {/* [FITUR BARU 2] TOMBOL LOCATE CAPITAL */}
+                            {selectedTile.ownerCastle && (
+                                <button 
+                                    onClick={() => onJumpToCoord(selectedTile.ownerCastle.x, selectedTile.ownerCastle.y)}
+                                    className="text-[10px] text-[#d4af37] hover:text-white underline flex items-center gap-1 transition-colors"
+                                >
+                                    <Eye className="w-3 h-3" /> Locate Capital Center
+                                </button>
+                            )}
                         </>
                     ) : (
                         <>
