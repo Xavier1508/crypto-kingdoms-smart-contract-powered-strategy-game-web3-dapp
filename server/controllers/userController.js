@@ -88,8 +88,6 @@ const getMetadata = async (req, res) => {
         const tokenId = req.params.tokenId; 
         console.log(`🔍 Searching Metadata for Token ID: ${tokenId}`);
 
-        // Ambil world aktif dan playerData-nya
-        // Gunakan .lean() agar jadi object JavaScript biasa (bukan Map Mongoose) biar mudah di-loop
         const worlds = await World.find({ status: 'ACTIVE' }).select('playerData').lean();
         
         let foundPlayer = null;
@@ -128,8 +126,8 @@ const getMetadata = async (req, res) => {
         const metadata = {
             name: `Kingdom of ${foundPlayer.username}`,
             description: `A powerful kingdom located at [${foundPlayer.castleX}, ${foundPlayer.castleY}].`,
-            image: "https://i.imgur.com/XqQZ4pZ.png", 
-            external_url: "https://cryptokingdoms.game",
+            image: "https://opengameart.org/sites/default/files/castle_7.png", 
+            external_url: "https://cryptokingdoms.xavierrenjiro.site",
             attributes: [
                 { trait_type: "Power", value: foundPlayer.power },
                 { trait_type: "Troops", value: (foundPlayer.troops.infantry + foundPlayer.troops.archer + foundPlayer.troops.cavalry) },
