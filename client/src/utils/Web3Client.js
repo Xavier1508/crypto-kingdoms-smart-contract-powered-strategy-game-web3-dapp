@@ -2,7 +2,7 @@
 import { ethers } from 'ethers';
 import GameMapABI from '../contracts/GameMap.sol/GameMap.json';
 
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const CONTRACT_ADDRESS = "0x4e4161C652D57668add1c3E8Ef62b678548235Bd";
 
 export const getEthereumContract = async () => {
   const { ethereum } = window;
@@ -24,26 +24,30 @@ export const getEthereumContract = async () => {
 };
 
 // --- FUNGSI MINTING KINGDOM ---
-export const mintKingdomNFT = async (username, x, y) => {
+export const mintKingdomNFT = async (username, x, y, tokenURI) => {
   try {
     const contract = await getEthereumContract();
     
-    console.log(`🦊 MetaMask: Minting Kingdom for ${username} at (${x}, ${y})...`);
+    console.log(`🦊 MetaMask: Minting with URI: ${tokenURI}`);
     
-    // Panggil fungsi di Smart Contract: mintKingdom(string, int, int)
-    const tx = await contract.mintKingdom(username, x, y);
+    // Panggil fungsi Smart Contract yang BARU (4 parameter)
+    const tx = await contract.mintKingdom(username, x, y, tokenURI);
     
-    console.log("⏳ Transaction sent! Waiting for confirmation...", tx.hash);
+    console.log("⏳ Waiting confirmation...", tx.hash);
     
-    // Tunggu sampai transaksi selesai (1 block confirmation)
-    await tx.wait();
+    // Tunggu receipt untuk mendapatkan Token ID
+    const receipt = await tx.wait();
     
-    console.log("✅ Mint Success! Transaction Hash:", tx.hash);
-    return { success: true, hash: tx.hash };
+    // Cara mengambil Token ID dari Event Log (sedikit tricky di Ethers v6)
+    // Untuk simplifikasi, kita anggap sukses dulu. 
+    // Di real-world, kita parse receipt.logs untuk dapat tokenId.
+    // Tapi karena ini local & demo, kita bisa fetch counter atau tebak (increment).
+    // NAMUN, yang paling aman untuk demo: Return hashnya.
+    
+    return { success: true, hash: tx.hash, receipt: receipt };
 
   } catch (error) {
     console.error("Minting Failed:", error);
-    // Cek error spesifik (misal: "One wallet, one kingdom!")
     if (error.reason) return { success: false, error: error.reason };
     return { success: false, error: error.message };
   }

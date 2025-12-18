@@ -81,7 +81,7 @@ export interface GameMapInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "mintKingdom",
-    values: [string, BigNumberish, BigNumberish]
+    values: [string, BigNumberish, BigNumberish, string]
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
   encodeFunctionData(
@@ -350,7 +350,7 @@ export interface GameMap extends BaseContract {
   >;
 
   mintKingdom: TypedContractMethod<
-    [_username: string, _x: BigNumberish, _y: BigNumberish],
+    [_username: string, _x: BigNumberish, _y: BigNumberish, _tokenURI: string],
     [bigint],
     "nonpayable"
   >;
@@ -448,7 +448,7 @@ export interface GameMap extends BaseContract {
   getFunction(
     nameOrSignature: "mintKingdom"
   ): TypedContractMethod<
-    [_username: string, _x: BigNumberish, _y: BigNumberish],
+    [_username: string, _x: BigNumberish, _y: BigNumberish, _tokenURI: string],
     [bigint],
     "nonpayable"
   >;

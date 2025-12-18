@@ -6,29 +6,17 @@ const World = require('../models/World');
 const getUserProfile = async (req, res) => {
     try {
         const userId = req.params.userId;
-
-        // 1. Ambil Data User Dasar (Username, Email, Wallet)
         const user = await User.findById(userId).select('-password');
-        if (!user) {
-            return res.status(404).json({ msg: 'User not found' });
-        }
+        if (!user) return res.status(404).json({ msg: 'User not found' });
 
-        // 2. Cari World dimana user ini bermain
-        // Kita cari world yang di array 'players' nya ada userId ini
         const activeWorlds = await World.find({ players: userId });
 
-        // 3. Format Data untuk Frontend
-        // Kita butuh resource & stats spesifik user ini dari setiap world
         const worldsData = activeWorlds.map(world => {
-            // Ambil data spesifik player dari Map 'playerData'
-            // Perlu .get() jika Mongoose Map, atau akses langsung jika object
             const playerData = world.playerData.get ? world.playerData.get(userId) : world.playerData[userId];
-
             return {
                 worldId: world.worldId,
                 worldName: world.name,
                 status: world.status,
-                // Data Gameplay User di World ini
                 power: playerData ? playerData.power : 0,
                 resources: playerData ? playerData.resources : null,
                 troops: playerData ? playerData.troops : null,
@@ -47,13 +35,115 @@ const getUserProfile = async (req, res) => {
             },
             activeWorlds: worldsData
         });
-
     } catch (error) {
         console.error('Get Profile Error:', error);
         res.status(500).json({ msg: 'Server Error' });
     }
 };
 
+// [PERBAIKAN] Link Token ID dengan metode yang pasti tersimpan
+const linkTokenId = async (req, res) => {
+    try {
+        const { userId, tokenId, worldId } = req.body;
+        console.log(`🔗 Linking Request: User ${userId} -> Token ${tokenId} in World ${worldId}`);
+
+        // Update langsung ke path spesifik di Map Mongoose
+        // Syntax: "playerData.USER_ID.tokenId"
+        const updateField = {};
+        updateField[`playerData.${userId}.tokenId`] = String(tokenId);
+
+        const result = await World.updateOne(
+            { worldId: worldId },
+            { $set: updateField }
+        );
+
+        if (result.modifiedCount > 0) {
+            console.log("✅ Token ID Linked Successfully to DB!");
+            res.json({ success: true, msg: "Token Linked" });
+        } else {
+            console.warn("⚠️ Token ID not linked (User not found or ID same)");
+            // Cek apakah user ada
+            const world = await World.findOne({ worldId });
+            if (!world.playerData.has(userId)) {
+                return res.status(404).json({ error: "User not found in this world" });
+            }
+            res.json({ success: true, msg: "Token Linked (No Change)" });
+        }
+
+    } catch (error) {
+        console.error("Link Error:", error);
+        res.status(500).json({ error: "Link failed" });
+    }
+};
+
+// [PERBAIKAN] Metadata Generator
+const getMetadata = async (req, res) => {
+    try {
+        const tokenId = req.params.tokenId; 
+        console.log(`🔍 Searching Metadata for Token ID: ${tokenId}`);
+
+        // Ambil world aktif dan playerData-nya
+        // Gunakan .lean() agar jadi object JavaScript biasa (bukan Map Mongoose) biar mudah di-loop
+        const worlds = await World.find({ status: 'ACTIVE' }).select('playerData').lean();
+        
+        let foundPlayer = null;
+        
+        // Loop manual karena struktur Map di Mongo agak unik saat di-lean()
+        for (const world of worlds) {
+            if (!world.playerData) continue;
+
+            // world.playerData adalah Object sekarang (karena .lean())
+            // Keys-nya adalah UserID
+            const playerIds = Object.keys(world.playerData);
+            
+            for (const pid of playerIds) {
+                const pData = world.playerData[pid];
+                // Pastikan tokenId ada dan cocok (String vs String)
+                if (pData.tokenId && String(pData.tokenId) === String(tokenId)) {
+                    foundPlayer = pData;
+                    break;
+                }
+            }
+            if (foundPlayer) break;
+        }
+
+        if (!foundPlayer) {
+            console.warn(`❌ Token ID ${tokenId} not found in DB.`);
+            return res.json({
+                name: `Unrevealed Kingdom #${tokenId}`,
+                description: "This kingdom has not yet been established in the database.",
+                image: "https://via.placeholder.com/500x500.png?text=Loading+Kingdom"
+            });
+        }
+
+        console.log(`✅ Metadata Found for: ${foundPlayer.username}`);
+
+        // --- FORMAT STANDAR OPENSEA ---
+        const metadata = {
+            name: `Kingdom of ${foundPlayer.username}`,
+            description: `A powerful kingdom located at [${foundPlayer.castleX}, ${foundPlayer.castleY}].`,
+            image: "https://i.imgur.com/XqQZ4pZ.png", 
+            external_url: "https://cryptokingdoms.game",
+            attributes: [
+                { trait_type: "Power", value: foundPlayer.power },
+                { trait_type: "Troops", value: (foundPlayer.troops.infantry + foundPlayer.troops.archer + foundPlayer.troops.cavalry) },
+                { trait_type: "Resources", value: (foundPlayer.resources.gold + foundPlayer.resources.food) },
+                { trait_type: "X Coordinate", value: foundPlayer.castleX },
+                { trait_type: "Y Coordinate", value: foundPlayer.castleY },
+                { trait_type: "Season", value: "Alpha 1" }
+            ]
+        };
+
+        res.json(metadata);
+
+    } catch (error) {
+        console.error("Metadata Error:", error);
+        res.status(500).json({ error: "Metadata Error" });
+    }
+};
+
 module.exports = {
-    getUserProfile
+    getUserProfile,
+    linkTokenId,
+    getMetadata,
 };

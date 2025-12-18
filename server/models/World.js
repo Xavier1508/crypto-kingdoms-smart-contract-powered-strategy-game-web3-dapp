@@ -10,6 +10,8 @@ const WorldSchema = new mongoose.Schema({
   playerData: {
       type: Map,
       of: new mongoose.Schema({
+          tokenId: { type: String, default: null }, 
+
           username: String,
           color: String,
           castleX: Number,
@@ -31,9 +33,8 @@ const WorldSchema = new mongoose.Schema({
               siege: { type: Number, default: 0 }
           },
 
-          // --- [BARU] TRAINING QUEUE ---
           trainingQueue: [{
-              troopType: String, // 'infantry', 'archer', etc
+              troopType: String,
               amount: Number,
               startTime: Date,
               endTime: Date

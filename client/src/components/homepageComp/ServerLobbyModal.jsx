@@ -16,11 +16,11 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
   
   // State Status Join
   const [joiningId, setJoiningId] = useState(null); 
-  const [joinStep, setJoinStep] = useState(""); // "Connecting...", "Minting NFT...", "Finalizing..."
+  const [joinStep, setJoinStep] = useState(""); 
 
   const currentUserId = localStorage.getItem('userId'); 
 
-  // 1. FETCH WORLDS DATA (Sama seperti sebelumnya)
+  // 1. FETCH WORLDS DATA
   useEffect(() => {
     if (isOpen) fetchWorlds();
   }, [isOpen]);
@@ -29,11 +29,21 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     try {
       setLoading(true);
       setError(null);
+      // PENTING: Pastikan backend server nyala di port 5000
       const res = await fetch('http://localhost:5000/api/worlds');
+      
+      // Cek apakah response JSON valid
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+         throw new Error("Server tidak merespons dengan data yang benar. Cek koneksi backend.");
+      }
+
       if (!res.ok) throw new Error("Gagal mengambil data server.");
+      
       const data = await res.json();
       setWorlds(data);
       
+      // Auto-switch ke tab 'My Realm' jika user sudah punya world
       const myWorld = data.find(w => w.players.includes(currentUserId));
       if (myWorld) setActiveTab('my');
 
@@ -48,7 +58,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
   const myWorlds = worlds.filter(w => w.players.includes(currentUserId));
   const displayWorlds = activeTab === 'my' ? myWorlds : worlds;
 
-  // --- [UPDATE BESAR DISINI] JOIN LOGIC ---
+  // --- [PERBAIKAN UTAMA DISINI] JOIN LOGIC ---
   const handleJoinWorld = async (world) => {
     const isAlreadyJoined = world.players.includes(currentUserId);
 
@@ -59,6 +69,8 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     } else {
       // Kalau BELUM join -> Proses Spawn & Minting
       if (world.status === 'FULL') return;
+      
+      // Cek MetaMask
       if (!window.ethereum) {
         alert("MetaMask is required to join a new world!");
         return;
@@ -68,8 +80,8 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
         setJoiningId(world.worldId);
         setJoinStep("Allocating Territory..."); // Step 1
         
-        // 1. Minta Server alokasikan lahan (Database update)
-        const res = await fetch('http://localhost:5000/api/worlds/join', {
+        // 1. REQUEST SPAWN LOCATION KE SERVER
+        const spawnRes = await fetch('http://localhost:5000/api/worlds/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -78,30 +90,64 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
           })
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.msg || "Failed to join");
+        // Validasi Response Server (Mencegah error "<" unexpected token)
+        const contentType = spawnRes.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            const text = await spawnRes.text();
+            console.error("Server Error Response:", text);
+            throw new Error("Server Error: Endpoint /join tidak ditemukan atau error internal.");
+        }
+
+        const data = await spawnRes.json();
+        if (!spawnRes.ok) throw new Error(data.msg || "Failed to join");
 
         console.log("✅ Server Spawn Success:", data);
-        const { x, y } = data.spawnLocation;
-        const kingdomName = localStorage.getItem('username') || "Unknown King";
-
-        // 2. [BLOCKCHAIN] MINT NFT DI KOORDINAT ITU
-        setJoinStep("Minting Kingdom NFT..."); // Step 2 (Popup MetaMask muncul)
         
-        const mintResult = await mintKingdomNFT(kingdomName, x, y);
+        // 2. SIAPKAN METADATA URL & TOKEN ID YANG KONSISTEN
+        // Kita generate ID unik (timestamp) agar URL metadata dan ID di DB sama
+        const tempTokenId = Date.now().toString(); 
+        const API_URL = "https://crumply-stalky-delilah.ngrok-free.dev/api/users/metadata/";
+        
+        // URL ini yang akan disimpan di Blockchain (Smart Contract)
+        const tokenURI = `${API_URL}${tempTokenId}`; 
+
+        setJoinStep("Minting Kingdom NFT..."); // Step 2 (MetaMask Popup)
+        
+        // 3. MINT NFT DENGAN URI YANG BENAR
+        const kingdomName = localStorage.getItem('username') || "Unknown King";
+        
+        // Panggil fungsi Web3
+        const mintResult = await mintKingdomNFT(
+            kingdomName, 
+            data.spawnLocation.x, 
+            data.spawnLocation.y, 
+            tokenURI // <--- Kirim URI yang sudah ada ID-nya
+        );
         
         if (!mintResult.success) {
-          // Jika user reject di metamask atau error gas
           throw new Error("Blockchain Minting Failed: " + mintResult.error);
         }
 
         console.log("✅ NFT Minted on Chain!");
-        setJoinStep("Entering World...");
-        
-        // 3. Masuk Game
+        setJoinStep("Finalizing...");
+
+        // 4. LINK TOKEN ID KE DATABASE
+        // Agar saat OpenSea memanggil URL tadi, server tau data siapa yang harus dikirim
+        await fetch('http://localhost:5000/api/users/link-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: currentUserId,
+                worldId: world.worldId,
+                tokenId: tempTokenId // <--- GUNAKAN ID YANG SAMA DENGAN URI
+            })
+        });
+
+        console.log("✅ Identity Linked!");
         enterGame(world.worldId);
 
       } catch (err) {
+        // Tampilkan error yang lebih bersahabat
         alert(`Join Failed: ${err.message}`);
         console.error(err);
         setJoiningId(null);
@@ -121,7 +167,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-4xl bg-[#1a2332] border border-[#4b5563] rounded-lg shadow-2xl flex flex-col max-h-[90vh]">
         
-        {/* HEADER (Sama) */}
+        {/* HEADER */}
         <div className="p-6 border-b border-[#4b5563] flex justify-between items-center bg-[#1f2937]">
           <div>
             <h2 className="text-2xl font-bold font-['Cinzel'] text-[#d4af37] tracking-wider flex items-center gap-2">
@@ -134,9 +180,8 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* TABS (Sama) */}
+        {/* TABS */}
         <div className="flex border-b border-[#4b5563] bg-[#1a2332]">
-            {/* ... (Code Tab Buttons SAMA SEPERTI SEBELUMNYA) ... */}
              <button 
                 onClick={() => setActiveTab('all')}
                 className={`flex-1 py-4 text-sm font-bold tracking-wide transition-colors flex items-center justify-center gap-2
@@ -203,7 +248,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
                             </span>
                           )}
                         </div>
-                        {/* Info Status (Sama) */}
+                        {/* Info Status */}
                         <div className="flex items-center gap-4 text-xs text-gray-400">
                            <span className="flex items-center gap-1">
                             <Activity className="w-3 h-3 text-green-500" />
