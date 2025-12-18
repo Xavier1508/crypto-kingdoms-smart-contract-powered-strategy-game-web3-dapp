@@ -44,11 +44,20 @@ const getUserProfile = async (req, res) => {
 // [PERBAIKAN] Link Token ID dengan metode yang pasti tersimpan
 const linkTokenId = async (req, res) => {
     try {
-        const { userId, tokenId, worldId } = req.body;
-        console.log(`🔗 Linking Request: User ${userId} -> Token ${tokenId} in World ${worldId}`);
+        // Ambil data, pastikan worldId di-convert jadi Number agar cocok dengan DB
+        let { userId, tokenId, worldId } = req.body;
+        worldId = parseInt(worldId); // <--- KUNCI PERBAIKAN: Paksa jadi Angka
 
-        // Update langsung ke path spesifik di Map Mongoose
-        // Syntax: "playerData.USER_ID.tokenId"
+        console.log(`LINKING REQUEST: User ${userId} -> Token ${tokenId} in World ${worldId}`);
+
+        // Cek dulu apakah World-nya ada?
+        const worldExists = await World.findOne({ worldId: worldId });
+        if (!worldExists) {
+            console.error("Link Error: World ID not found in DB:", worldId);
+            return res.status(404).json({ error: "World not found" });
+        }
+
+        // Update langsung ke path spesifik
         const updateField = {};
         updateField[`playerData.${userId}.tokenId`] = String(tokenId);
 
@@ -57,22 +66,19 @@ const linkTokenId = async (req, res) => {
             { $set: updateField }
         );
 
+        console.log("🛠️ DB Update Result:", result);
+
         if (result.modifiedCount > 0) {
-            console.log("✅ Token ID Linked Successfully to DB!");
+            console.log("✅ SUCCESS: Token ID Linked!");
             res.json({ success: true, msg: "Token Linked" });
         } else {
-            console.warn("⚠️ Token ID not linked (User not found or ID same)");
-            // Cek apakah user ada
-            const world = await World.findOne({ worldId });
-            if (!world.playerData.has(userId)) {
-                return res.status(404).json({ error: "User not found in this world" });
-            }
-            res.json({ success: true, msg: "Token Linked (No Change)" });
+            console.warn("⚠️ WARNING: DB not modified. Check if User ID matches exactly.");
+            res.json({ success: false, msg: "User path not found or Token already set" });
         }
 
     } catch (error) {
-        console.error("Link Error:", error);
-        res.status(500).json({ error: "Link failed" });
+        console.error("❌ CRITICAL Link Error:", error);
+        res.status(500).json({ error: "Link failed server error" });
     }
 };
 
