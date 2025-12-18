@@ -15,11 +15,31 @@ const PORT = process.env.PORT || 5000;
 
 // --- MIDDLEWARE ---
 app.use(cors({
-    origin: "*", // Sesuaikan dengan domain frontend di production nanti
+    origin: [
+        "http://localhost:5173", // Biar di laptop tetap jalan
+        "https://crypto-kingdoms-the-on-chain-domini.vercel.app"
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
 }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+    const allowedOrigins = [
+        "http://localhost:5173", 
+        "https://crypto-kingdoms-the-on-chain-domini.vercel.app"
+    ];
+    const origin = req.headers.origin;
+    
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', true);
+    return next();
+});
 
 // --- SETUP SERVER & SOCKET.IO ---
 const server = http.createServer(app);
