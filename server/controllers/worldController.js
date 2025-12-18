@@ -9,9 +9,42 @@ const createEmptyGrid = (size) => Array(size).fill().map(() => Array(size).fill(
 
 const getWorldsList = async (req, res) => {
     try {
-        const worlds = await World.find({}, '-mapGrid -ownershipMap -provinceMap').lean(); 
+        // 1. Cek apakah ada world
+        let worlds = await World.find({}, '-mapGrid -ownershipMap -provinceMap').lean(); 
+        
+        // 2. AUTO-GENESIS: Jika kosong, buat World baru OTOMATIS
+        if (worlds.length === 0) {
+            console.log("⚡ GENESIS PROTOCOL: No worlds found. Creating World #1...");
+            const MAP_SIZE = 400;
+            const mapData = generateRoKMap(MAP_SIZE);
+            const emptyOwnership = createEmptyGrid(MAP_SIZE);
+            
+            const newWorld = new World({
+                worldId: 1,
+                name: "The Lost Kingdom (Season 1)",
+                status: "ACTIVE",
+                maxPlayers: 32,
+                seasonEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                mapGrid: mapData.grid,
+                provinceMap: mapData.provinceMap || [],
+                mapSize: MAP_SIZE,
+                mapVersion: 'voronoi-v2',
+                playerData: {},
+                players: [],
+                ownershipMap: emptyOwnership
+            });
+
+            await newWorld.save();
+            await ProvinceManager.initializeProvinces(1, mapData.provinces);
+            
+            // Ambil lagi data world yang baru dibuat
+            worlds = await World.find({}, '-mapGrid -ownershipMap -provinceMap').lean();
+            console.log("✅ World #1 Created Successfully by Request Trigger");
+        }
+
         res.json(worlds);
     } catch (error) {
+        console.error("Get Worlds Error:", error);
         res.status(500).json({ error: 'Failed to fetch worlds' });
     }
 };
