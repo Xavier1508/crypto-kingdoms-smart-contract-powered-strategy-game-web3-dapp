@@ -17,7 +17,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
     origin: [
         "http://localhost:5173", // Biar di laptop tetap jalan
-        "https://crypto-kingdoms-the-on-chain-domini.vercel.app"
+        "https://crypto-kingdoms-the-on-chain-domini.vercel.app",
+        "https://cryptokingdoms.xavierrenjiro.site"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
@@ -27,7 +28,8 @@ app.use(express.json());
 app.use((req, res, next) => {
     const allowedOrigins = [
         "http://localhost:5173", 
-        "https://crypto-kingdoms-the-on-chain-domini.vercel.app"
+        "https://crypto-kingdoms-the-on-chain-domini.vercel.app",
+        "https://cryptokingdoms.xavierrenjiro.site"
     ];
     const origin = req.headers.origin;
     
