@@ -19,7 +19,8 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
   const [joinStep, setJoinStep] = useState(""); 
 
   const currentUserId = localStorage.getItem('userId'); 
-
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  
   // 1. FETCH WORLDS DATA
   useEffect(() => {
     if (isOpen) fetchWorlds();
@@ -30,7 +31,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
       setLoading(true);
       setError(null);
       // PENTING: Pastikan backend server nyala di port 5000
-      const res = await fetch('http://localhost:5000/api/worlds');
+      const res = await fetch(`${API_BASE_URL}/api/worlds`);
       
       // Cek apakah response JSON valid
       const contentType = res.headers.get("content-type");
@@ -81,7 +82,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
         setJoinStep("Allocating Territory..."); // Step 1
         
         // 1. REQUEST SPAWN LOCATION KE SERVER
-        const spawnRes = await fetch('http://localhost:5000/api/worlds/join', {
+        const spawnRes = await fetch(`${API_BASE_URL}/api/worlds/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -105,8 +106,11 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
         
         // 2. SIAPKAN METADATA URL & TOKEN ID YANG KONSISTEN
         // Kita generate ID unik (timestamp) agar URL metadata dan ID di DB sama
+        // 2. SIAPKAN METADATA URL & TOKEN ID YANG KONSISTEN
         const tempTokenId = Date.now().toString(); 
-        const API_URL = "https://crumply-stalky-delilah.ngrok-free.dev/api/users/metadata/";
+        
+        // [UBAH DISINI] Gunakan API_BASE_URL
+        const API_URL = `${API_BASE_URL}/api/users/metadata/`;
         
         // URL ini yang akan disimpan di Blockchain (Smart Contract)
         const tokenURI = `${API_URL}${tempTokenId}`; 
@@ -121,7 +125,7 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
             kingdomName, 
             data.spawnLocation.x, 
             data.spawnLocation.y, 
-            tokenURI // <--- Kirim URI yang sudah ada ID-nya
+            tokenURI 
         );
         
         if (!mintResult.success) {
@@ -132,14 +136,14 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
         setJoinStep("Finalizing...");
 
         // 4. LINK TOKEN ID KE DATABASE
-        // Agar saat OpenSea memanggil URL tadi, server tau data siapa yang harus dikirim
-        await fetch('http://localhost:5000/api/users/link-token', {
+        // [UBAH DISINI] Gunakan API_BASE_URL
+        await fetch(`${API_BASE_URL}/api/users/link-token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId: currentUserId,
                 worldId: world.worldId,
-                tokenId: tempTokenId // <--- GUNAKAN ID YANG SAMA DENGAN URI
+                tokenId: tempTokenId
             })
         });
 
