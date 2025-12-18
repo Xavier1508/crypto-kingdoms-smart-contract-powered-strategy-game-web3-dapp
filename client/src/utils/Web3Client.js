@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 // Pastikan path ini sesuai dengan lokasi file JSON ABI di folder project Anda
 // Jika error "Module not found", cek apakah file json ada di folder contracts/GameMap.sol/
-import GameMapABI from '../contractABI/GameMap.json'; 
+import GameMapABI from '../contracts/GameMap.sol/GameMap.json'; 
 
 // ALAMAT KONTRAK RESMI DARI DEPLOYMENT ANDA (SEPOLIA)
 const CONTRACT_ADDRESS = "0x4e4161C652D57668add1c3E8Ef62b678548235Bd"; //
