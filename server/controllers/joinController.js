@@ -80,7 +80,8 @@ const finalizeJoin = async (req, res) => {
 
         const userDocs = await User.findById(userId);
         const username = userDocs ? userDocs.username : "Unknown Lord";
-        const playerColor = generatePlayerColor(); 
+
+        const playerColor = generatePlayerColor(username);
 
         if (!world.players.includes(userId)) world.players.push(userId);
         if (!world.playerData) world.playerData = new Map();
