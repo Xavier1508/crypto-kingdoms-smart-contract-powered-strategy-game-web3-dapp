@@ -11,14 +11,13 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
     password: ''
   });
 
+  const API_URL = import.meta.env.VITE_API_URL; 
+
   const connectWallet = async () => {
     if (window.ethereum) {
       try {
-        // Request akses ke MetaMask
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
         const account = accounts[0];
-        
-        // Otomatis isi form
         setFormData(prev => ({ ...prev, walletAddress: account }));
         console.log("Wallet Connected:", account);
       } catch {
@@ -34,7 +33,6 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
     setIsLoading(true);
     setError(null);
 
-    // Validasi Wallet
     if (!formData.walletAddress) {
         setError("Please connect your wallet first!");
         setIsLoading(false);
@@ -42,7 +40,13 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      // --- PERBAIKAN DI SINI ---
+      // Jangan pakai localhost:5000, tapi pakai variabel API_URL
+      const endpoint = `${API_URL}/api/auth/register`; 
+      
+      console.log("Registering to:", endpoint); // Untuk debugging
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +66,8 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
       }
       onRegisterSuccess(); 
     } catch (err) {
-      setError(err.message);
+      console.error("Register Error:", err);
+      setError(err.message || "Failed to register. Check connection.");
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +114,6 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
         />
       </div>
 
-      {/* --- INPUT WALLET DENGAN TOMBOL CONNECT --- */}
       <div className="space-y-2">
         <label htmlFor="reg-wallet" className="block text-sm font-medium text-gray-200">
           Wallet Address
@@ -134,10 +138,9 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
             </button>
         </div>
         <p className="text-[10px] text-gray-500">
-            *Requires MetaMask connected to Localhost:8545
+            *Requires MetaMask (Sepolia Network Recommended)
         </p>
       </div>
-      {/* ------------------------------------------ */}
 
       <div className="space-y-2">
         <label htmlFor="reg-password" className="block text-sm font-medium text-gray-200">
