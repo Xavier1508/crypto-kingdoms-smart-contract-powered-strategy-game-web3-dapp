@@ -3,7 +3,8 @@ const router = express.Router();
 const { 
     getWorldsList, 
     getWorldMap, 
-    joinWorld, 
+    requestSpawn,
+    finalizeJoin,
     trainTroops, 
     regenerateWorldMap,
     getTileInfo,
@@ -12,7 +13,8 @@ const {
 } = require('../controllers/worldController');
 
 router.get('/', getWorldsList);
-router.post('/join', joinWorld);
+router.post('/request-spawn', requestSpawn);
+router.post('/finalize-join', finalizeJoin);
 router.get('/:worldId/map', getWorldMap);
 router.post('/train', trainTroops); 
 router.post('/conquer', conquerTile);

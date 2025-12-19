@@ -59,104 +59,91 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
   const myWorlds = worlds.filter(w => w.players.includes(currentUserId));
   const displayWorlds = activeTab === 'my' ? myWorlds : worlds;
 
-  // --- [PERBAIKAN UTAMA DISINI] JOIN LOGIC ---
   const handleJoinWorld = async (world) => {
     const isAlreadyJoined = world.players.includes(currentUserId);
 
     if (isAlreadyJoined) {
-      // Kalau sudah join, langsung masuk
-      console.log(`🚀 Entering World ${world.worldId}...`);
+      console.log(`Entering World ${world.worldId}...`);
       enterGame(world.worldId);
-    } else {
-      // Kalau BELUM join -> Proses Spawn & Minting
-      if (world.status === 'FULL') return;
-      
-      // Cek MetaMask
-      if (!window.ethereum) {
-        alert("MetaMask is required to join a new world!");
-        return;
-      }
+      return;
+    } 
 
-      try {
+    // 2. JIKA BELUM JOIN -> PROSES MINTING & SPAWN
+    if (world.status === 'FULL') return;
+    if (!window.ethereum) {
+        alert("MetaMask is required to join!");
+        return;
+    }
+
+    try {
         setJoiningId(world.worldId);
-        setJoinStep("Allocating Territory..."); // Step 1
         
-        // 1. REQUEST SPAWN LOCATION KE SERVER
-        const spawnRes = await fetch(`${API_BASE_URL}/api/worlds/join`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            worldId: world.worldId,
-            userId: currentUserId 
-          })
+        // --- STEP 1: MINTA KOORDINAT (Tapi belum disimpan di DB) ---
+        setJoinStep("Scanning Territory..."); 
+        
+        const spawnRes = await fetch(`${API_BASE_URL}/api/worlds/request-spawn`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ worldId: world.worldId })
         });
 
-        // Validasi Response Server (Mencegah error "<" unexpected token)
-        const contentType = spawnRes.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            const text = await spawnRes.text();
-            console.error("Server Error Response:", text);
-            throw new Error("Server Error: Endpoint /join tidak ditemukan atau error internal.");
-        }
-
-        const data = await spawnRes.json();
-        if (!spawnRes.ok) throw new Error(data.msg || "Failed to join");
-
-        console.log("✅ Server Spawn Success:", data);
+        if (!spawnRes.ok) throw new Error("Failed to find spawn location");
+        const spawnData = await spawnRes.json();
         
-        // 2. SIAPKAN METADATA URL & TOKEN ID YANG KONSISTEN
-        // Kita generate ID unik (timestamp) agar URL metadata dan ID di DB sama
-        // 2. SIAPKAN METADATA URL & TOKEN ID YANG KONSISTEN
+        console.log("📍 Candidate Location:", spawnData);
+
+        // --- STEP 2: MINTING KE BLOCKCHAIN ---
+        // Kita pakai timestamp sebagai Token ID sementara untuk URI
         const tempTokenId = Date.now().toString(); 
-        
-        // [UBAH DISINI] Gunakan API_BASE_URL
         const API_URL = `${API_BASE_URL}/api/users/metadata/`;
-        
-        // URL ini yang akan disimpan di Blockchain (Smart Contract)
         const tokenURI = `${API_URL}${tempTokenId}`; 
 
-        setJoinStep("Minting Kingdom NFT..."); // Step 2 (MetaMask Popup)
-        
-        // 3. MINT NFT DENGAN URI YANG BENAR
+        setJoinStep("Minting Kingdom NFT..."); 
+
         const kingdomName = localStorage.getItem('username') || "Unknown King";
         
-        // Panggil fungsi Web3
+        // Pop-up MetaMask muncul disini
+        // Jika user REJECT, kode akan stop & masuk ke catch (Database aman, belum tersimpan)
         const mintResult = await mintKingdomNFT(
             kingdomName, 
-            data.spawnLocation.x, 
-            data.spawnLocation.y, 
+            spawnData.x, 
+            spawnData.y, 
             tokenURI 
         );
         
         if (!mintResult.success) {
-          throw new Error("Blockchain Minting Failed: " + mintResult.error);
+            throw new Error(mintResult.error || "Minting Cancelled");
         }
 
-        console.log("✅ NFT Minted on Chain!");
+        console.log("✅ Mint Success! Hash:", mintResult.hash);
+
+        // --- STEP 3: FINALISASI (BARU SIMPAN KE DB) ---
         setJoinStep("Finalizing...");
 
-        // 4. LINK TOKEN ID KE DATABASE
-        // [UBAH DISINI] Gunakan API_BASE_URL
-        await fetch(`${API_BASE_URL}/api/users/link-token`, {
+        const finalizeRes = await fetch(`${API_BASE_URL}/api/worlds/finalize-join`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId: currentUserId,
                 worldId: world.worldId,
-                tokenId: tempTokenId
+                userId: currentUserId,
+                x: spawnData.x,
+                y: spawnData.y,
+                txHash: mintResult.hash,
+                tokenId: tempTokenId // Kita kirim ID ini agar metadata connect
             })
         });
 
-        console.log("✅ Identity Linked!");
+        if (!finalizeRes.ok) throw new Error("Failed to save Kingdom to Database");
+
+        console.log("✅ Kingdom Established!");
         enterGame(world.worldId);
 
-      } catch (err) {
-        // Tampilkan error yang lebih bersahabat
-        alert(`Join Failed: ${err.message}`);
+    } catch (err) {
         console.error(err);
+        alert(`Join Failed: ${err.message}`);
+    } finally {
         setJoiningId(null);
         setJoinStep("");
-      }
     }
   };
 

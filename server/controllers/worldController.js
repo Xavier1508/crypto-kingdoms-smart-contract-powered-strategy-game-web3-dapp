@@ -49,6 +49,145 @@ const getWorldsList = async (req, res) => {
     }
 };
 
+const requestSpawn = async (req, res) => {
+    try {
+        const { worldId } = req.body;
+        const world = await World.findOne({ worldId });
+        
+        if (!world) return res.status(404).json({ msg: "World not found" });
+        if (world.players.length >= world.maxPlayers) return res.status(400).json({ msg: "World Full" });
+
+        // --- SPAWN ALGORITHM (Logic Lama Kita Pindahkan Kesini) ---
+        const outerProvinces = await Province.find({ worldId, layer: 'outer', isUnlocked: true }).lean();
+        
+        // Init ownership sementara di memori untuk pengecekan
+        const tempOwnership = world.ownershipMap || createEmptyGrid(world.mapSize);
+
+        let spawnFound = false;
+        let finalX, finalY;
+        let attempt = 0;
+        const MAX_ATTEMPTS = 500;
+
+        while (!spawnFound && attempt < MAX_ATTEMPTS) {
+            attempt++;
+            let cx, cy;
+
+            if (outerProvinces.length > 0) {
+                const prov = outerProvinces[Math.floor(Math.random() * outerProvinces.length)];
+                const angle = Math.random() * 2 * Math.PI;
+                const distance = Math.random() * 35;
+                cx = Math.round(prov.centerX + Math.cos(angle) * distance);
+                cy = Math.round(prov.centerY + Math.sin(angle) * distance);
+            } else {
+                cx = Math.floor(Math.random() * 300) + 50;
+                cy = Math.floor(Math.random() * 300) + 50;
+            }
+
+            if (cx < 5 || cx >= world.mapSize - 5 || cy < 5 || cy >= world.mapSize - 5) continue;
+
+            let areaClear = true;
+            for (let i = -2; i <= 2; i++) {
+                for (let j = -2; j <= 2; j++) {
+                    const checkX = cx + i;
+                    const checkY = cy + j;
+                    if (!world.mapGrid[checkX]) { areaClear = false; break; }
+                    if (world.mapGrid[checkX][checkY] !== 1) { areaClear = false; break; } 
+                    if (tempOwnership[checkX][checkY]) { areaClear = false; break; }
+                }
+                if (!areaClear) break;
+            }
+            
+            if (areaClear) { spawnFound = true; finalX = cx; finalY = cy; }
+        }
+
+        if (!spawnFound) {
+            return res.status(400).json({ msg: "No spawn location found. Try again." });
+        }
+
+        // KEMBALIKAN KOORDINAT SAJA (JANGAN SAVE KE DB)
+        console.log(`📍 Spawn Candidate found at [${finalX}, ${finalY}] for World ${worldId}`);
+        res.json({ success: true, x: finalX, y: finalY });
+
+    } catch (err) {
+        console.error("Spawn Request Error:", err);
+        res.status(500).json({ msg: "Spawn calc failed" });
+    }
+};
+
+const finalizeJoin = async (req, res) => {
+    try {
+        const { worldId, userId, x, y, txHash, tokenId } = req.body;
+        
+        console.log(`📝 Finalizing Join: User ${userId} at [${x},${y}] | Tx: ${txHash}`);
+
+        const world = await World.findOne({ worldId });
+        if (!world) return res.status(404).json({ msg: "World missing" });
+
+        // Cek lagi apakah tanah masih kosong (Mencegah race condition)
+        if (world.ownershipMap[x][y]) {
+            return res.status(400).json({ msg: "Land was taken just now! Please try again." });
+        }
+
+        // --- DATA PLAYER BARU ---
+        const userDocs = await User.findById(userId);
+        const username = userDocs ? userDocs.username : "Unknown Lord";
+        const playerColor = generatePlayerColor(); 
+
+        if (!world.players.includes(userId)) {
+            world.players.push(userId);
+        }
+
+        if (!world.playerData) world.playerData = new Map();
+
+        const newPlayerData = {
+            username: username,
+            color: playerColor,
+            castleX: parseInt(x),
+            castleY: parseInt(y),
+            power: 1000,
+            tokenId: tokenId || null, // Simpan Token ID jika ada
+            resources: { food: 1000, wood: 1000, stone: 500, gold: 200 },
+            troops: { infantry: 350, archer: 250, cavalry: 150, siege: 100 }
+        };
+
+        // Simpan ke Map Mongoose
+        world.playerData.set(userId, newPlayerData);
+
+        // Update Area Kekuasaan (3x3)
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                world.ownershipMap[parseInt(x) + i][parseInt(y) + j] = userId;
+            }
+        }
+        
+        // Mark Modified Wajib untuk Array/Map
+        world.markModified('ownershipMap');
+        world.markModified('playerData');
+        world.markModified('players');
+        
+        await world.save(); // BARU DISINI KITA SAVE PERMANEN
+
+        // Broadcast ke Pemain Lain (Socket.IO)
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`world_${worldId}`).emit('map_updated', {
+                type: 'NEW_PLAYER',
+                userId: userId,
+                username: username,
+                castleX: x,
+                castleY: y,
+                color: playerColor
+            });
+        }
+
+        res.json({ success: true, msg: "Welcome to the Kingdom!" });
+
+    } catch (err) {
+        console.error("Finalize Error:", err);
+        res.status(500).json({ msg: "Finalization failed. Contact support." });
+    }
+};
+
 const getWorldMap = async (req, res) => {
     try {
         const { worldId } = req.params;
@@ -104,186 +243,186 @@ const regenerateWorldMap = async (req, res) => {
     }
 };
 
-const joinWorld = async (req, res) => {
-    try {
-        const { worldId, userId } = req.body;
+// const joinWorld = async (req, res) => {
+//     try {
+//         const { worldId, userId } = req.body;
         
-        // 1. Validasi Input
-        if (!worldId || !userId) return res.status(400).json({ msg: "Invalid Data" });
+//         // 1. Validasi Input
+//         if (!worldId || !userId) return res.status(400).json({ msg: "Invalid Data" });
 
-        const world = await World.findOne({ worldId: worldId });
-        const userDocs = await User.findById(userId);
-        const realUsername = userDocs ? userDocs.username : "Unknown Lord"; 
+//         const world = await World.findOne({ worldId: worldId });
+//         const userDocs = await User.findById(userId);
+//         const realUsername = userDocs ? userDocs.username : "Unknown Lord"; 
 
-        if (!world) return res.status(404).json({ msg: "World not found" });
+//         if (!world) return res.status(404).json({ msg: "World not found" });
         
-        const io = req.app.get('io'); 
+//         const io = req.app.get('io'); 
 
-        // --- [LOGIKA PERBAIKAN START] ---
-        // Kita cek Data Player secara mendalam, bukan cuma cek ID di array
-        let pData = null;
-        if (world.playerData) {
-            pData = world.playerData.get(userId) || world.playerData[userId];
-        }
+//         // --- [LOGIKA PERBAIKAN START] ---
+//         // Kita cek Data Player secara mendalam, bukan cuma cek ID di array
+//         let pData = null;
+//         if (world.playerData) {
+//             pData = world.playerData.get(userId) || world.playerData[userId];
+//         }
 
-        // Cek apakah castle user benar-benar ada koordinatnya
-        const hasValidCastle = pData && pData.castleX !== undefined && pData.castleY !== undefined;
+//         // Cek apakah castle user benar-benar ada koordinatnya
+//         const hasValidCastle = pData && pData.castleX !== undefined && pData.castleY !== undefined;
 
-        // JIKA USER SUDAH PUNYA CASTLE VALID -> LANGSUNG MASUK (WELCOME BACK)
-        if (hasValidCastle) {
-            console.log(`User ${realUsername} returning to castle at ${pData.castleX}, ${pData.castleY}`);
-            return res.json({ 
-                msg: "Welcome back", 
-                worldId, 
-                spawnLocation: { x: pData.castleX, y: pData.castleY },
-                playerData: pData // Kirim data lengkap biar frontend ga bingung
-            });
-        }
-        // JIKA TIDAK PUNYA CASTLE (Meskipun ID ada di list players) -> LANJUT KE PROSES SPAWN DI BAWAH
-        // --- [LOGIKA PERBAIKAN END] ---
+//         // JIKA USER SUDAH PUNYA CASTLE VALID -> LANGSUNG MASUK (WELCOME BACK)
+//         if (hasValidCastle) {
+//             console.log(`User ${realUsername} returning to castle at ${pData.castleX}, ${pData.castleY}`);
+//             return res.json({ 
+//                 msg: "Welcome back", 
+//                 worldId, 
+//                 spawnLocation: { x: pData.castleX, y: pData.castleY },
+//                 playerData: pData // Kirim data lengkap biar frontend ga bingung
+//             });
+//         }
+//         // JIKA TIDAK PUNYA CASTLE (Meskipun ID ada di list players) -> LANJUT KE PROSES SPAWN DI BAWAH
+//         // --- [LOGIKA PERBAIKAN END] ---
 
-        if (world.players.length >= world.maxPlayers && !world.players.includes(userId)) {
-            return res.status(400).json({ msg: "World Full" });
-        }
+//         if (world.players.length >= world.maxPlayers && !world.players.includes(userId)) {
+//             return res.status(400).json({ msg: "World Full" });
+//         }
 
-        // --- PROSES MENCARI LAHAN (SPAWN ALGORITHM) ---
-        // Get outer provinces
-        const outerProvinces = await Province.find({
-            worldId, layer: 'outer', isUnlocked: true
-        }).lean();
+//         // --- PROSES MENCARI LAHAN (SPAWN ALGORITHM) ---
+//         // Get outer provinces
+//         const outerProvinces = await Province.find({
+//             worldId, layer: 'outer', isUnlocked: true
+//         }).lean();
 
-        if (outerProvinces.length === 0) {
-            console.warn("⚠️ Warning: No outer provinces found. Using fallback spawn range.");
-        }
+//         if (outerProvinces.length === 0) {
+//             console.warn("⚠️ Warning: No outer provinces found. Using fallback spawn range.");
+//         }
 
-        // Init ownership if needed
-        if (!world.ownershipMap || world.ownershipMap.length !== world.mapSize) {
-            world.ownershipMap = createEmptyGrid(world.mapSize);
-        }
+//         // Init ownership if needed
+//         if (!world.ownershipMap || world.ownershipMap.length !== world.mapSize) {
+//             world.ownershipMap = createEmptyGrid(world.mapSize);
+//         }
 
-        let spawnFound = false;
-        let finalX, finalY;
-        let attempt = 0;
-        const MAX_ATTEMPTS = 500;
+//         let spawnFound = false;
+//         let finalX, finalY;
+//         let attempt = 0;
+//         const MAX_ATTEMPTS = 500;
 
-        while (!spawnFound && attempt < MAX_ATTEMPTS) {
-            attempt++;
+//         while (!spawnFound && attempt < MAX_ATTEMPTS) {
+//             attempt++;
             
-            let cx, cy;
+//             let cx, cy;
 
-            if (outerProvinces.length > 0) {
-                // Pick random outer province
-                const prov = outerProvinces[Math.floor(Math.random() * outerProvinces.length)];
-                // Random position near province center
-                const angle = Math.random() * 2 * Math.PI;
-                const distance = Math.random() * 35;
-                cx = Math.round(prov.centerX + Math.cos(angle) * distance);
-                cy = Math.round(prov.centerY + Math.sin(angle) * distance);
-            } else {
-                // Fallback Logic (Random di pinggiran map 400x400)
-                // Spawn di range 50-350
-                cx = Math.floor(Math.random() * 300) + 50;
-                cy = Math.floor(Math.random() * 300) + 50;
-            }
+//             if (outerProvinces.length > 0) {
+//                 // Pick random outer province
+//                 const prov = outerProvinces[Math.floor(Math.random() * outerProvinces.length)];
+//                 // Random position near province center
+//                 const angle = Math.random() * 2 * Math.PI;
+//                 const distance = Math.random() * 35;
+//                 cx = Math.round(prov.centerX + Math.cos(angle) * distance);
+//                 cy = Math.round(prov.centerY + Math.sin(angle) * distance);
+//             } else {
+//                 // Fallback Logic (Random di pinggiran map 400x400)
+//                 // Spawn di range 50-350
+//                 cx = Math.floor(Math.random() * 300) + 50;
+//                 cy = Math.floor(Math.random() * 300) + 50;
+//             }
 
-            // Bounds check (Safety Margin 5 pixel dari ujung)
-            if (cx < 5 || cx >= world.mapSize - 5 || cy < 5 || cy >= world.mapSize - 5) continue;
+//             // Bounds check (Safety Margin 5 pixel dari ujung)
+//             if (cx < 5 || cx >= world.mapSize - 5 || cy < 5 || cy >= world.mapSize - 5) continue;
 
-            // Check 3x3 area availability
-            let areaClear = true;
-            for (let i = -2; i <= 2; i++) { // Cek radius lebih luas (5x5) biar aman
-                for (let j = -2; j <= 2; j++) {
-                    const checkX = cx + i;
-                    const checkY = cy + j;
+//             // Check 3x3 area availability
+//             let areaClear = true;
+//             for (let i = -2; i <= 2; i++) { // Cek radius lebih luas (5x5) biar aman
+//                 for (let j = -2; j <= 2; j++) {
+//                     const checkX = cx + i;
+//                     const checkY = cy + j;
                     
-                    // Pastikan grid ada
-                    if (!world.mapGrid[checkX]) { areaClear = false; break; }
+//                     // Pastikan grid ada
+//                     if (!world.mapGrid[checkX]) { areaClear = false; break; }
 
-                    // Cek Tipe Tanah (Harus Zone 1/Grass)
-                    const tile = world.mapGrid[checkX][checkY];
-                    if (tile !== 1) { areaClear = false; break; } 
+//                     // Cek Tipe Tanah (Harus Zone 1/Grass)
+//                     const tile = world.mapGrid[checkX][checkY];
+//                     if (tile !== 1) { areaClear = false; break; } 
                     
-                    // Cek Kepemilikan (Harus Kosong/Null)
-                    if (world.ownershipMap[checkX][checkY]) { areaClear = false; break; }
-                }
-                if (!areaClear) break;
-            }
+//                     // Cek Kepemilikan (Harus Kosong/Null)
+//                     if (world.ownershipMap[checkX][checkY]) { areaClear = false; break; }
+//                 }
+//                 if (!areaClear) break;
+//             }
             
-            if (areaClear) { 
-                spawnFound = true; 
-                finalX = cx; 
-                finalY = cy; 
-            }
-        }
+//             if (areaClear) { 
+//                 spawnFound = true; 
+//                 finalX = cx; 
+//                 finalY = cy; 
+//             }
+//         }
 
-        if (!spawnFound) {
-            console.error("❌ Failed to find spawn location after", MAX_ATTEMPTS, "attempts");
-            return res.status(400).json({ msg: "No safe spawn space available. Please regenerate world." });
-        }
+//         if (!spawnFound) {
+//             console.error("❌ Failed to find spawn location after", MAX_ATTEMPTS, "attempts");
+//             return res.status(400).json({ msg: "No safe spawn space available. Please regenerate world." });
+//         }
 
-        // --- CREATE / UPDATE PLAYER DATA ---
-        const playerColor = generatePlayerColor(); 
+//         // --- CREATE / UPDATE PLAYER DATA ---
+//         const playerColor = generatePlayerColor(); 
         
-        // Hanya push jika ID belum ada (untuk mencegah duplikasi array)
-        if (!world.players.some(p => p.toString() === userId)) {
-            world.players.push(userId);
-        }
+//         // Hanya push jika ID belum ada (untuk mencegah duplikasi array)
+//         if (!world.players.some(p => p.toString() === userId)) {
+//             world.players.push(userId);
+//         }
         
-        if (!world.playerData) world.playerData = new Map();
+//         if (!world.playerData) world.playerData = new Map();
 
-        const newPlayerData = {
-            username: realUsername,
-            color: playerColor,
-            castleX: finalX,
-            castleY: finalY,
-            power: 1000,
-            // Resource Awal
-            resources: { food: 1000, wood: 1000, stone: 500, gold: 200 },
-            // Pasukan Awal
-            troops: { infantry: 350, archer: 250, cavalry: 150, siege: 100 }
-        };
+//         const newPlayerData = {
+//             username: realUsername,
+//             color: playerColor,
+//             castleX: finalX,
+//             castleY: finalY,
+//             power: 1000,
+//             // Resource Awal
+//             resources: { food: 1000, wood: 1000, stone: 500, gold: 200 },
+//             // Pasukan Awal
+//             troops: { infantry: 350, archer: 250, cavalry: 150, siege: 100 }
+//         };
 
-        world.playerData.set(userId, newPlayerData);
+//         world.playerData.set(userId, newPlayerData);
 
-        // Update Ownership Map (3x3 area jadi milik user)
-        for (let i = -1; i <= 1; i++) {
-            for (let j = -1; j <= 1; j++) {
-                world.ownershipMap[finalX + i][finalY + j] = userId;
-            }
-        }
+//         // Update Ownership Map (3x3 area jadi milik user)
+//         for (let i = -1; i <= 1; i++) {
+//             for (let j = -1; j <= 1; j++) {
+//                 world.ownershipMap[finalX + i][finalY + j] = userId;
+//             }
+//         }
         
-        world.markModified('ownershipMap');
-        world.markModified('playerData');
-        world.markModified('players');
+//         world.markModified('ownershipMap');
+//         world.markModified('playerData');
+//         world.markModified('players');
         
-        await world.save();
+//         await world.save();
 
-        console.log(`✅ NEW KINGDOM FOUNDED: ${realUsername} at [${finalX}, ${finalY}]`);
+//         console.log(`✅ NEW KINGDOM FOUNDED: ${realUsername} at [${finalX}, ${finalY}]`);
 
-        if (io) {
-            io.to(`world_${worldId}`).emit('map_updated', {
-                type: 'NEW_PLAYER',
-                userId: userId,
-                username: realUsername,
-                castleX: finalX,
-                castleY: finalY,
-                color: playerColor
-            });
-        }
+//         if (io) {
+//             io.to(`world_${worldId}`).emit('map_updated', {
+//                 type: 'NEW_PLAYER',
+//                 userId: userId,
+//                 username: realUsername,
+//                 castleX: finalX,
+//                 castleY: finalY,
+//                 color: playerColor
+//             });
+//         }
 
-        res.json({ 
-            msg: "Kingdom Founded!", 
-            worldId,
-            spawnLocation: { x: finalX, y: finalY },
-            playerColor: playerColor,
-            playerData: newPlayerData
-        });
+//         res.json({ 
+//             msg: "Kingdom Founded!", 
+//             worldId,
+//             spawnLocation: { x: finalX, y: finalY },
+//             playerColor: playerColor,
+//             playerData: newPlayerData
+//         });
 
-    } catch (err) {
-        console.error("Join Error:", err);
-        res.status(500).send('Server Error: ' + err.message);
-    }
-};
+//     } catch (err) {
+//         console.error("Join Error:", err);
+//         res.status(500).send('Server Error: ' + err.message);
+//     }
+// };
 
 const getTileInfo = async (req, res) => {
     try {
@@ -549,9 +688,10 @@ module.exports = {
     getWorldsList,
     getWorldMap,
     regenerateWorldMap,
-    joinWorld,
     getTileInfo,
     getProvinceDetails,
     trainTroops,
     conquerTile,
+    requestSpawn,
+    finalizeJoin,
 };
