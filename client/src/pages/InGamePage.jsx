@@ -21,13 +21,17 @@ const InGamePage = () => {
     const [selectedTile, setSelectedTile] = useState(null);
     const [initialCameraPos, setInitialCameraPos] = useState(null);
 
+    const API_URL = import.meta.env.VITE_API_URL;
+    
     // Fungsi Fetch Map
     const fetchMapData = async () => {
         const currentWorldId = localStorage.getItem('currentWorldId');
         if (!currentWorldId) return;
 
         try {
-            const res = await fetch(`http://localhost:5000/api/worlds/${currentWorldId}/map`);
+            // [PERBAIKAN 1] Gunakan API_URL
+            const res = await fetch(`${API_URL}/api/worlds/${currentWorldId}/map`);
+            
             if (!res.ok) throw new Error("Gagal load map");
             const data = await res.json();
 
@@ -118,7 +122,8 @@ const InGamePage = () => {
 
         // 3. KIRIM KE SERVER
         try {
-            const res = await fetch('http://localhost:5000/api/worlds/train', {
+            // [PERBAIKAN 2] Gunakan API_URL
+            const res = await fetch(`${API_URL}/api/worlds/train`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -131,7 +136,7 @@ const InGamePage = () => {
 
             const data = await res.json();
             
-            // 4. ERROR HANDLING (Rollback State) [DIIMPLEMENTASIKAN]
+            // 4. ERROR HANDLING (Rollback State)
             if (!data.success) {
                 console.error("Training Rejected by Server:", data.error);
                 alert("Training Failed: " + data.error);
@@ -158,7 +163,8 @@ const InGamePage = () => {
         try {
             console.log(`⚔️ Attempting to conquer (${targetX}, ${targetY})...`);
 
-            const res = await fetch('http://localhost:5000/api/worlds/conquer', {
+            // [PERBAIKAN 3] Gunakan API_URL
+            const res = await fetch(`${API_URL}/api/worlds/conquer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -208,7 +214,8 @@ const InGamePage = () => {
         };
         initGame();
 
-        const socket = io('http://localhost:5000'); 
+        // [PERBAIKAN 4] Socket juga pakai API_URL
+        const socket = io(API_URL); 
         socketRef.current = socket;
 
         socket.on('connect', () => {

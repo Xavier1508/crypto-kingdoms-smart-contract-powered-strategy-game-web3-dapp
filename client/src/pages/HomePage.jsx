@@ -13,6 +13,7 @@ const HomePage = () => {
   const [activeWorlds, setActiveWorlds] = useState([]);
   const [selectedWorldId, setSelectedWorldId] = useState(null); // ID World yang sedang dilihat infonya
   const [loading, setLoading] = useState(true);
+  const API_URL = import.meta.env.VITE_API_URL
 
   // 1. FETCH DATA USER & WORLD STATS
   useEffect(() => {
@@ -24,7 +25,7 @@ const HomePage = () => {
       }
 
       try {
-        const res = await fetch(`http://localhost:5000/api/users/${userId}/profile`);
+        const res = await fetch(`${API_URL}/api/users/${userId}/profile`); 
         const data = await res.json();
 
         if (res.ok) {

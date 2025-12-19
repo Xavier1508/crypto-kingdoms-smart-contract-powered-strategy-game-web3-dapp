@@ -40,8 +40,6 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
     }
 
     try {
-      // --- PERBAIKAN DI SINI ---
-      // Jangan pakai localhost:5000, tapi pakai variabel API_URL
       const endpoint = `${API_URL}/api/auth/register`; 
       
       console.log("Registering to:", endpoint); // Untuk debugging
