@@ -1,13 +1,15 @@
+// server/server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
-const mongoose = require('mongoose'); // Pastikan mongoose terimport
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 
 const { connectDB } = require('./config/db');
 const World = require('./models/World');
-const { Province, ProvinceManager } = require('./models/ProvinceManager');
+const { ProvinceManager } = require('./models/ProvinceManager');
 const { generateRoKMap } = require('./utils/voronoiMapGenerator');
 
 const app = express();
@@ -16,14 +18,25 @@ const PORT = process.env.PORT || 5000;
 // --- MIDDLEWARE ---
 app.use(cors({
     origin: [
-        "http://localhost:5173", // Biar di laptop tetap jalan
+        "http://localhost:5173", 
         "https://crypto-kingdoms-the-on-chain-domini.vercel.app",
         "https://cryptokingdoms.xavierrenjiro.site"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
 }));
-app.use(express.json());
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+    if (req.method === 'POST' || req.method === 'PUT') {
+        console.log(`📡 [${req.method}] ${req.url}`);
+        console.log("📦 Headers Content-Type:", req.headers['content-type']);
+        console.log("📦 Body Received:", req.body);
+    }
+    next();
+});
 
 app.use((req, res, next) => {
     const allowedOrigins = [
@@ -50,7 +63,6 @@ const io = new Server(server, {
         origin: "*",
         methods: ["GET", "POST"]
     },
-    // Opsi tambahan untuk stabilitas di serverless (long-polling)
     transports: ['polling', 'websocket'], 
     path: '/socket.io/'
 });
@@ -72,105 +84,78 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- DATABASE CONNECTION HANDLING (Vercel Optimized) ---
-// Kita memastikan DB connect sebelum memproses request
+// --- DATABASE CONNECTION ---
 let isConnected = false;
 const connectToDatabase = async () => {
     if (isConnected) return;
     try {
         await connectDB();
         isConnected = true;
-        console.log("✅ Database Connected (Cached)");
+        console.log("Database Connected (Cached)");
     } catch (error) {
-        console.error("❌ Database Connection Failed:", error);
+        console.error("Database Connection Failed:", error);
     }
 };
 
-// Middleware untuk memastikan DB connect di setiap request Vercel
 app.use(async (req, res, next) => {
     await connectToDatabase();
     next();
 });
 
-// --- GAME LOGIC FUNCTION (DIPISAH DARI INTERVAL) ---
-// Fungsi ini akan dipanggil oleh CRON JOB atau Request Manual
+// --- GAME LOGIC FUNCTION ---
 const runGameTick = async () => {
     try {
-        console.log("⏳ Running Game Tick...");
-        
-        // Optimasi: Hanya ambil field yang diperlukan
-        const activeWorlds = await World.find({ status: 'ACTIVE' })
-            .select('worldId playerData status');
-
+        const activeWorlds = await World.find({ status: 'ACTIVE' }).select('worldId playerData status');
         if (activeWorlds.length === 0) return "No Active Worlds";
 
         let updatesCount = 0;
 
         for (const world of activeWorlds) {
             if (!world.playerData) continue;
-
             let hasChanges = false;
             const now = new Date();
 
-            // Mongoose Map Iteration
-            if (world.playerData instanceof Map) {
-                 for (const [userId, pData] of world.playerData.entries()) {
-                    // 1. Produksi Resource
-                    const baseRate = 10;
-                    pData.resources.food += baseRate;
-                    pData.resources.wood += baseRate;
-                    pData.resources.stone += baseRate / 2;
-                    pData.resources.gold += baseRate / 5;
+            const processUserData = (pData) => {
+                let changed = false;
+                // 1. Resource
+                const baseRate = 10;
+                pData.resources.food += baseRate;
+                pData.resources.wood += baseRate;
+                pData.resources.stone += baseRate / 2;
+                pData.resources.gold += baseRate / 5;
 
-                    // 2. Proses Queue Training
-                    if (pData.trainingQueue && pData.trainingQueue.length > 0) {
-                        const queueItem = pData.trainingQueue[0];
-                        if (new Date(queueItem.endTime) <= now) {
-                            pData.troops[queueItem.troopType] += queueItem.amount;
-                            // Hapus item pertama
-                            pData.trainingQueue.shift();
-                            hasChanges = true;
-                        }
+                // 2. Training Queue
+                if (pData.trainingQueue && pData.trainingQueue.length > 0) {
+                    const queueItem = pData.trainingQueue[0];
+                    if (new Date(queueItem.endTime) <= now) {
+                        pData.troops[queueItem.troopType] += queueItem.amount;
+                        pData.trainingQueue.shift();
+                        changed = true;
                     }
+                }
 
-                    // 3. Update Power
-                    const troopPower = (pData.troops.infantry * 1) + 
-                                     (pData.troops.archer * 1.5) + 
-                                     (pData.troops.cavalry * 2) + 
-                                     (pData.troops.siege * 2.5);
-                    pData.power = Math.floor(troopPower);
-                    hasChanges = true;
+                // 3. Power Update
+                const troopPower = (pData.troops.infantry * 1) + (pData.troops.archer * 1.5) + (pData.troops.cavalry * 2) + (pData.troops.siege * 2.5);
+                pData.power = Math.floor(troopPower);
+                
+                // Return true if ALWAYS updating resources (which we are)
+                return true; 
+            };
+
+            if (world.playerData instanceof Map) {
+                for (const [userId, pData] of world.playerData.entries()) {
+                    if(processUserData(pData)) hasChanges = true;
                 }
             } else {
-                // Fallback jika bukan Map (Object biasa)
-                 for (const userId in world.playerData) {
-                    const pData = world.playerData[userId];
-                    const baseRate = 10;
-                    pData.resources.food += baseRate;
-                    pData.resources.wood += baseRate;
-                    pData.resources.stone += baseRate / 2;
-                    pData.resources.gold += baseRate / 5;
-                    
-                     if (pData.trainingQueue && pData.trainingQueue.length > 0) {
-                        const queueItem = pData.trainingQueue[0];
-                        if (new Date(queueItem.endTime) <= now) {
-                            pData.troops[queueItem.troopType] += queueItem.amount;
-                            pData.trainingQueue.shift();
-                            hasChanges = true;
-                        }
-                    }
-                    const troopPower = (pData.troops.infantry * 1) + (pData.troops.archer * 1.5) + (pData.troops.cavalry * 2) + (pData.troops.siege * 2.5);
-                    pData.power = Math.floor(troopPower);
-                    hasChanges = true;
-                 }
+                for (const userId in world.playerData) {
+                    if(processUserData(world.playerData[userId])) hasChanges = true;
+                }
             }
 
             if (hasChanges) {
                 world.markModified('playerData');
                 await world.save();
                 updatesCount++;
-
-                // Emit ke Socket (Mungkin tidak sampai jika pakai Vercel Serverless, tapi tetap kita pasang)
                 io.to(`world_${world.worldId}`).emit('resource_update', {
                     worldId: world.worldId,
                     playerData: world.playerData
@@ -184,12 +169,33 @@ const runGameTick = async () => {
     }
 };
 
-// --- INITIALIZATION FUNCTION ---
+// --- ROUTES ---
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/worlds', require('./routes/worlds'));
+app.use('/api/users', require('./routes/users'));
+
+app.get('/api/init-world', async (req, res) => {
+    await initializeGameWorld();
+    res.send("World Initialization Check Complete");
+});
+
+app.get('/api/cron/tick', async (req, res) => {
+    try {
+        const result = await runGameTick();
+        res.status(200).json({ status: 'ok', message: result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/', (req, res) => res.send('Kingdom Server Running on Vercel'));
+
+// --- INITIALIZATION ---
 const initializeGameWorld = async () => {
     try {
         const worldCount = await World.countDocuments();
         if (worldCount === 0) {
-            console.log("GENESIS PROTOCOL: Generating Map (400x400)...");
+            console.log("GENESIS PROTOCOL: Generating Map...");
             const mapData = generateRoKMap(400);
 
             const newWorld = new World({
@@ -218,48 +224,14 @@ const initializeGameWorld = async () => {
     }
 };
 
-// --- ROUTES ---
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/worlds', require('./routes/worlds'));
-app.use('/api/users', require('./routes/users'));
-
-// Route Khusus untuk memicu Init World pertama kali
-app.get('/api/init-world', async (req, res) => {
-    await initializeGameWorld();
-    res.send("World Initialization Check Complete");
-});
-
-// [PENTING] Route Khusus untuk Vercel Cron Job
-// Vercel akan memanggil link ini setiap X detik/menit untuk menjalankan game loop
-app.get('/api/cron/tick', async (req, res) => {
-    // Opsional: Tambahkan proteksi secret key agar tidak sembarang orang hit
-    // if (req.query.key !== process.env.CRON_SECRET) return res.status(401).send('Unauthorized');
-    
-    try {
-        const result = await runGameTick();
-        res.status(200).json({ status: 'ok', message: result });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Base Route
-app.get('/', (req, res) => res.send('Kingdom Server Running on Vercel'));
-
-// --- SERVER LISTENER LOGIC ---
-// Jika di Local (Development), pakai server.listen
-// Jika di Vercel (Production), export app
 if (process.env.NODE_ENV !== 'production') {
     connectToDatabase().then(() => {
         initializeGameWorld();
-        // Jalankan setInterval HANYA jika di local
         setInterval(runGameTick, 2000); 
-        
         server.listen(PORT, () => {
-            console.log(`🚀 Local Server running on http://localhost:${PORT}`);
+            console.log(`Local Server running on http://localhost:${PORT}`);
         });
     });
 }
 
-// Export untuk Vercel
 module.exports = app;

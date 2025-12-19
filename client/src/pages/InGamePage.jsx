@@ -29,7 +29,6 @@ const InGamePage = () => {
         if (!currentWorldId) return;
 
         try {
-            // [PERBAIKAN 1] Gunakan API_URL
             const res = await fetch(`${API_URL}/api/worlds/${currentWorldId}/map`);
             
             if (!res.ok) throw new Error("Gagal load map");
@@ -70,14 +69,12 @@ const InGamePage = () => {
         }
     };
 
-    // --- [UPDATED FUNCTION] Optimistic UI + Error Rollback ---
     const handleTrainTroops = async (troopType, amount) => {
         const currentWorldId = localStorage.getItem('currentWorldId');
         const userId = localStorage.getItem('userId');
 
         if (!currentWorldId || !userId) return;
 
-        // 1. DATA SIMULASI (Optimistic)
         const SPECS = {
             infantry: { food: 10, wood: 10, gold: 0, timePerUnit: 2000 },
             archer:   { food: 15, wood: 20, gold: 2, timePerUnit: 3000 },
@@ -90,7 +87,6 @@ const InGamePage = () => {
             gold: SPECS[troopType].gold * amount
         };
 
-        // 2. UPDATE UI DULUAN (Supaya terasa cepat)
         setMyStats(prev => {
             if(!prev) return prev;
             
@@ -120,9 +116,7 @@ const InGamePage = () => {
             };
         });
 
-        // 3. KIRIM KE SERVER
         try {
-            // [PERBAIKAN 2] Gunakan API_URL
             const res = await fetch(`${API_URL}/api/worlds/train`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

@@ -1,18 +1,5 @@
 const PerlinNoise = require('./perlinNoise');
 
-/**
- * ═══════════════════════════════════════════════════════════════
- * RISE OF KINGDOMS - INSPIRED MAP GENERATOR
- * ═══════════════════════════════════════════════════════════════
- * 
- * KEY IMPROVEMENTS:
- * 1. ORGANIC PROVINCE SHAPES (Voronoi + Domain Warping)
- * 2. INTELLIGENT GATE PLACEMENT (No crossing, proper connections)
- * 3. LAYER-BASED ACCESS CONTROL (Outer→Mid→Inner→Center)
- * 4. BALANCED RESOURCE DISTRIBUTION
- * 5. NATURAL TERRAIN GENERATION
- */
-
 class RoKMapGenerator {
     constructor(size = 400, seed = Date.now()) {
         this.size = size;
@@ -24,7 +11,7 @@ class RoKMapGenerator {
         this.map = [];
         this.provinceMap = [];
         this.occupiedMap = [];
-        this.gatePositions = []; // Track gate locations
+        this.gatePositions = [];
         
         // ═══ LAYER CONFIGURATION ═══
         this.config = {

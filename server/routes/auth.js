@@ -52,18 +52,17 @@ router.post('/register', async (req, res) => {
       level: 1,
       
       // 5 Core Resources
-      food: 100,         // <-- TAMBAHKAN INI (Untuk pasukan)
+      food: 100,
       wood: 100,
       stone: 50,
       gold: 100,
-      aetherShards: 0,   // <-- TAMBAHKAN INI (Resource "Gem" premium)
+      aetherShards: 0,
 
-      troops: 10, // Pasukan default
+      troops: 10,
       lastLogin: new Date(),
     };
     await charactersCollection.insertOne(newCharacterDocument);
 
-    // 9. Buat Token (JWT) untuk auto-login
     const payload = {
       user: {
         id: newUserId,
@@ -87,17 +86,10 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// =========================================
-// @route    POST /api/auth/login
-// @desc     Login user & dapatkan token
-// @access   Public
-// =========================================
 router.post('/login', async (req, res) => {
   try {
-    // 1. Ambil data dari frontend
     const { email, password } = req.body;
 
-    // 2. Validasi sederhana
     if (!email || !password) {
       return res.status(400).json({ msg: 'Mohon isi email dan password' });
     }
@@ -114,9 +106,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ msg: 'Email atau Password salah' });
     }
 
-    // 5. Cek Password
-    // Kita bandingkan password dari frontend (plain text) 
-    // dengan password di database (yang sudah di-hash)
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {

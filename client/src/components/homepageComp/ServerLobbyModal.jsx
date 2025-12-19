@@ -63,12 +63,11 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     const isAlreadyJoined = world.players.includes(currentUserId);
 
     if (isAlreadyJoined) {
-      console.log(`Entering World ${world.worldId}...`);
+      console.log(`🚀 Entering World ${world.worldId}...`);
       enterGame(world.worldId);
       return;
     } 
 
-    // 2. JIKA BELUM JOIN -> PROSES MINTING & SPAWN
     if (world.status === 'FULL') return;
     if (!window.ethereum) {
         alert("MetaMask is required to join!");
@@ -78,7 +77,6 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
     try {
         setJoiningId(world.worldId);
         
-        // --- STEP 1: MINTA KOORDINAT (Tapi belum disimpan di DB) ---
         setJoinStep("Scanning Territory..."); 
         
         const spawnRes = await fetch(`${API_BASE_URL}/api/worlds/request-spawn`, {
@@ -89,36 +87,39 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
 
         if (!spawnRes.ok) throw new Error("Failed to find spawn location");
         const spawnData = await spawnRes.json();
-        
         console.log("📍 Candidate Location:", spawnData);
-
-        // --- STEP 2: MINTING KE BLOCKCHAIN ---
-        // Kita pakai timestamp sebagai Token ID sementara untuk URI
-        const tempTokenId = Date.now().toString(); 
-        const API_URL = `${API_BASE_URL}/api/users/metadata/`;
-        const tokenURI = `${API_URL}${tempTokenId}`; 
 
         setJoinStep("Minting Kingdom NFT..."); 
 
         const kingdomName = localStorage.getItem('username') || "Unknown King";
         
-        // Pop-up MetaMask muncul disini
-        // Jika user REJECT, kode akan stop & masuk ke catch (Database aman, belum tersimpan)
+        let seasonName = world.name;
+        const seasonMatch = world.name.match(/\((.*?)\)/); // Regex cari text dalam (...)
+        
+        if (seasonMatch && seasonMatch[1]) {
+            seasonName = seasonMatch[1];
+        }
+
+        console.log(`🌍 Minting for: World ID ${world.worldId} | Season: ${seasonName}`);
+
+        // Panggil Contract dengan Data Dinamis
         const mintResult = await mintKingdomNFT(
             kingdomName, 
             spawnData.x, 
             spawnData.y, 
-            tokenURI 
+            world.worldId,
+            seasonName
         );
         
         if (!mintResult.success) {
             throw new Error(mintResult.error || "Minting Cancelled");
         }
 
-        console.log("✅ Mint Success! Hash:", mintResult.hash);
-
-        // --- STEP 3: FINALISASI (BARU SIMPAN KE DB) ---
+        console.log("Mint Success! ID:", mintResult.tokenId);
         setJoinStep("Finalizing...");
+
+        // Gunakan Token ID asli dari Blockchain
+        const finalTokenId = mintResult.tokenId || Date.now().toString(); 
 
         const finalizeRes = await fetch(`${API_BASE_URL}/api/worlds/finalize-join`, {
             method: 'POST',
@@ -129,13 +130,13 @@ const ServerLobbyModal = ({ isOpen, onClose }) => {
                 x: spawnData.x,
                 y: spawnData.y,
                 txHash: mintResult.hash,
-                tokenId: tempTokenId // Kita kirim ID ini agar metadata connect
+                tokenId: finalTokenId,
             })
         });
 
         if (!finalizeRes.ok) throw new Error("Failed to save Kingdom to Database");
 
-        console.log("✅ Kingdom Established!");
+        console.log("🏰 Kingdom Established!");
         enterGame(world.worldId);
 
     } catch (err) {

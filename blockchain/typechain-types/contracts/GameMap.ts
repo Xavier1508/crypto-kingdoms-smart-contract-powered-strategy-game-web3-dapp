@@ -23,35 +23,74 @@ import type {
   TypedContractMethod,
 } from "../common";
 
+export declare namespace GameMap {
+  export type KingdomDataStruct = {
+    username: string;
+    x: BigNumberish;
+    y: BigNumberish;
+    worldId: BigNumberish;
+    seasonName: string;
+    rankTier: BigNumberish;
+    title: string;
+    power: BigNumberish;
+  };
+
+  export type KingdomDataStructOutput = [
+    username: string,
+    x: bigint,
+    y: bigint,
+    worldId: bigint,
+    seasonName: string,
+    rankTier: bigint,
+    title: string,
+    power: bigint
+  ] & {
+    username: string;
+    x: bigint;
+    y: bigint;
+    worldId: bigint;
+    seasonName: string;
+    rankTier: bigint;
+    title: string;
+    power: bigint;
+  };
+}
+
 export interface GameMapInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "approve"
       | "balanceOf"
       | "getApproved"
-      | "hasKingdom"
+      | "getKingdomData"
       | "isApprovedForAll"
-      | "kingdoms"
+      | "kingdomDetails"
       | "mintKingdom"
       | "name"
+      | "owner"
       | "ownerOf"
+      | "renounceOwnership"
       | "safeTransferFrom(address,address,uint256)"
       | "safeTransferFrom(address,address,uint256,bytes)"
       | "setApprovalForAll"
+      | "setBaseURI"
       | "supportsInterface"
       | "symbol"
       | "tokenURI"
       | "transferFrom"
-      | "updatePower"
+      | "transferOwnership"
+      | "updateAchievement"
+      | "walletJoinedWorld"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
       | "Approval"
       | "ApprovalForAll"
-      | "BatchMetadataUpdate"
+      | "BaseURIUpdated"
       | "KingdomMinted"
-      | "MetadataUpdate"
+      | "OwnershipTransferred"
+      | "TitleUpdated"
       | "Transfer"
   ): EventFragment;
 
@@ -68,25 +107,30 @@ export interface GameMapInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "hasKingdom",
-    values: [AddressLike]
+    functionFragment: "getKingdomData",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "isApprovedForAll",
     values: [AddressLike, AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "kingdoms",
+    functionFragment: "kingdomDetails",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "mintKingdom",
-    values: [string, BigNumberish, BigNumberish, string]
+    values: [string, BigNumberish, BigNumberish, BigNumberish, string]
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "ownerOf",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "renounceOwnership",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "safeTransferFrom(address,address,uint256)",
@@ -100,6 +144,7 @@ export interface GameMapInterface extends Interface {
     functionFragment: "setApprovalForAll",
     values: [AddressLike, boolean]
   ): string;
+  encodeFunctionData(functionFragment: "setBaseURI", values: [string]): string;
   encodeFunctionData(
     functionFragment: "supportsInterface",
     values: [BytesLike]
@@ -114,8 +159,16 @@ export interface GameMapInterface extends Interface {
     values: [AddressLike, AddressLike, BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "updatePower",
-    values: [BigNumberish, BigNumberish]
+    functionFragment: "transferOwnership",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "updateAchievement",
+    values: [BigNumberish, BigNumberish, string, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "walletJoinedWorld",
+    values: [AddressLike, BigNumberish]
   ): string;
 
   decodeFunctionResult(functionFragment: "approve", data: BytesLike): Result;
@@ -124,18 +177,29 @@ export interface GameMapInterface extends Interface {
     functionFragment: "getApproved",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "hasKingdom", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getKingdomData",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "isApprovedForAll",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "kingdoms", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "kingdomDetails",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "mintKingdom",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "ownerOf", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "safeTransferFrom(address,address,uint256)",
     data: BytesLike
@@ -148,6 +212,7 @@ export interface GameMapInterface extends Interface {
     functionFragment: "setApprovalForAll",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setBaseURI", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "supportsInterface",
     data: BytesLike
@@ -159,7 +224,15 @@ export interface GameMapInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "updatePower",
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "updateAchievement",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "walletJoinedWorld",
     data: BytesLike
   ): Result;
 }
@@ -204,15 +277,11 @@ export namespace ApprovalForAllEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace BatchMetadataUpdateEvent {
-  export type InputTuple = [
-    _fromTokenId: BigNumberish,
-    _toTokenId: BigNumberish
-  ];
-  export type OutputTuple = [_fromTokenId: bigint, _toTokenId: bigint];
+export namespace BaseURIUpdatedEvent {
+  export type InputTuple = [newURI: string];
+  export type OutputTuple = [newURI: string];
   export interface OutputObject {
-    _fromTokenId: bigint;
-    _toTokenId: bigint;
+    newURI: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -224,20 +293,20 @@ export namespace KingdomMintedEvent {
   export type InputTuple = [
     owner: AddressLike,
     tokenId: BigNumberish,
-    x: BigNumberish,
-    y: BigNumberish
+    worldId: BigNumberish,
+    username: string
   ];
   export type OutputTuple = [
     owner: string,
     tokenId: bigint,
-    x: bigint,
-    y: bigint
+    worldId: bigint,
+    username: string
   ];
   export interface OutputObject {
     owner: string;
     tokenId: bigint;
-    x: bigint;
-    y: bigint;
+    worldId: bigint;
+    username: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -245,11 +314,34 @@ export namespace KingdomMintedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace MetadataUpdateEvent {
-  export type InputTuple = [_tokenId: BigNumberish];
-  export type OutputTuple = [_tokenId: bigint];
+export namespace OwnershipTransferredEvent {
+  export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
+  export type OutputTuple = [previousOwner: string, newOwner: string];
   export interface OutputObject {
-    _tokenId: bigint;
+    previousOwner: string;
+    newOwner: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace TitleUpdatedEvent {
+  export type InputTuple = [
+    tokenId: BigNumberish,
+    newTitle: string,
+    newTier: BigNumberish
+  ];
+  export type OutputTuple = [
+    tokenId: bigint,
+    newTitle: string,
+    newTier: bigint
+  ];
+  export interface OutputObject {
+    tokenId: bigint;
+    newTitle: string;
+    newTier: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -328,7 +420,11 @@ export interface GameMap extends BaseContract {
 
   getApproved: TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
 
-  hasKingdom: TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+  getKingdomData: TypedContractMethod<
+    [tokenId: BigNumberish],
+    [GameMap.KingdomDataStructOutput],
+    "view"
+  >;
 
   isApprovedForAll: TypedContractMethod<
     [owner: AddressLike, operator: AddressLike],
@@ -336,13 +432,17 @@ export interface GameMap extends BaseContract {
     "view"
   >;
 
-  kingdoms: TypedContractMethod<
+  kingdomDetails: TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [string, bigint, bigint, bigint] & {
+      [string, bigint, bigint, bigint, string, bigint, string, bigint] & {
         username: string;
         x: bigint;
         y: bigint;
+        worldId: bigint;
+        seasonName: string;
+        rankTier: bigint;
+        title: string;
         power: bigint;
       }
     ],
@@ -350,14 +450,24 @@ export interface GameMap extends BaseContract {
   >;
 
   mintKingdom: TypedContractMethod<
-    [_username: string, _x: BigNumberish, _y: BigNumberish, _tokenURI: string],
+    [
+      _username: string,
+      _x: BigNumberish,
+      _y: BigNumberish,
+      _worldId: BigNumberish,
+      _seasonName: string
+    ],
     [bigint],
     "nonpayable"
   >;
 
   name: TypedContractMethod<[], [string], "view">;
 
+  owner: TypedContractMethod<[], [string], "view">;
+
   ownerOf: TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
+
+  renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
   "safeTransferFrom(address,address,uint256)": TypedContractMethod<
     [from: AddressLike, to: AddressLike, tokenId: BigNumberish],
@@ -382,6 +492,8 @@ export interface GameMap extends BaseContract {
     "nonpayable"
   >;
 
+  setBaseURI: TypedContractMethod<[newBaseURI: string], [void], "nonpayable">;
+
   supportsInterface: TypedContractMethod<
     [interfaceId: BytesLike],
     [boolean],
@@ -398,10 +510,27 @@ export interface GameMap extends BaseContract {
     "nonpayable"
   >;
 
-  updatePower: TypedContractMethod<
-    [_tokenId: BigNumberish, _newPower: BigNumberish],
+  transferOwnership: TypedContractMethod<
+    [newOwner: AddressLike],
     [void],
     "nonpayable"
+  >;
+
+  updateAchievement: TypedContractMethod<
+    [
+      _tokenId: BigNumberish,
+      _newTier: BigNumberish,
+      _newTitle: string,
+      _currentPower: BigNumberish
+    ],
+    [void],
+    "nonpayable"
+  >;
+
+  walletJoinedWorld: TypedContractMethod<
+    [arg0: AddressLike, arg1: BigNumberish],
+    [boolean],
+    "view"
   >;
 
   getFunction<T extends ContractMethod = ContractMethod>(
@@ -422,8 +551,12 @@ export interface GameMap extends BaseContract {
     nameOrSignature: "getApproved"
   ): TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
   getFunction(
-    nameOrSignature: "hasKingdom"
-  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
+    nameOrSignature: "getKingdomData"
+  ): TypedContractMethod<
+    [tokenId: BigNumberish],
+    [GameMap.KingdomDataStructOutput],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "isApprovedForAll"
   ): TypedContractMethod<
@@ -432,14 +565,18 @@ export interface GameMap extends BaseContract {
     "view"
   >;
   getFunction(
-    nameOrSignature: "kingdoms"
+    nameOrSignature: "kingdomDetails"
   ): TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [string, bigint, bigint, bigint] & {
+      [string, bigint, bigint, bigint, string, bigint, string, bigint] & {
         username: string;
         x: bigint;
         y: bigint;
+        worldId: bigint;
+        seasonName: string;
+        rankTier: bigint;
+        title: string;
         power: bigint;
       }
     ],
@@ -448,7 +585,13 @@ export interface GameMap extends BaseContract {
   getFunction(
     nameOrSignature: "mintKingdom"
   ): TypedContractMethod<
-    [_username: string, _x: BigNumberish, _y: BigNumberish, _tokenURI: string],
+    [
+      _username: string,
+      _x: BigNumberish,
+      _y: BigNumberish,
+      _worldId: BigNumberish,
+      _seasonName: string
+    ],
     [bigint],
     "nonpayable"
   >;
@@ -456,8 +599,14 @@ export interface GameMap extends BaseContract {
     nameOrSignature: "name"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "owner"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
     nameOrSignature: "ownerOf"
   ): TypedContractMethod<[tokenId: BigNumberish], [string], "view">;
+  getFunction(
+    nameOrSignature: "renounceOwnership"
+  ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "safeTransferFrom(address,address,uint256)"
   ): TypedContractMethod<
@@ -485,6 +634,9 @@ export interface GameMap extends BaseContract {
     "nonpayable"
   >;
   getFunction(
+    nameOrSignature: "setBaseURI"
+  ): TypedContractMethod<[newBaseURI: string], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "supportsInterface"
   ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
   getFunction(
@@ -501,11 +653,26 @@ export interface GameMap extends BaseContract {
     "nonpayable"
   >;
   getFunction(
-    nameOrSignature: "updatePower"
+    nameOrSignature: "transferOwnership"
+  ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "updateAchievement"
   ): TypedContractMethod<
-    [_tokenId: BigNumberish, _newPower: BigNumberish],
+    [
+      _tokenId: BigNumberish,
+      _newTier: BigNumberish,
+      _newTitle: string,
+      _currentPower: BigNumberish
+    ],
     [void],
     "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "walletJoinedWorld"
+  ): TypedContractMethod<
+    [arg0: AddressLike, arg1: BigNumberish],
+    [boolean],
+    "view"
   >;
 
   getEvent(
@@ -523,11 +690,11 @@ export interface GameMap extends BaseContract {
     ApprovalForAllEvent.OutputObject
   >;
   getEvent(
-    key: "BatchMetadataUpdate"
+    key: "BaseURIUpdated"
   ): TypedContractEvent<
-    BatchMetadataUpdateEvent.InputTuple,
-    BatchMetadataUpdateEvent.OutputTuple,
-    BatchMetadataUpdateEvent.OutputObject
+    BaseURIUpdatedEvent.InputTuple,
+    BaseURIUpdatedEvent.OutputTuple,
+    BaseURIUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "KingdomMinted"
@@ -537,11 +704,18 @@ export interface GameMap extends BaseContract {
     KingdomMintedEvent.OutputObject
   >;
   getEvent(
-    key: "MetadataUpdate"
+    key: "OwnershipTransferred"
   ): TypedContractEvent<
-    MetadataUpdateEvent.InputTuple,
-    MetadataUpdateEvent.OutputTuple,
-    MetadataUpdateEvent.OutputObject
+    OwnershipTransferredEvent.InputTuple,
+    OwnershipTransferredEvent.OutputTuple,
+    OwnershipTransferredEvent.OutputObject
+  >;
+  getEvent(
+    key: "TitleUpdated"
+  ): TypedContractEvent<
+    TitleUpdatedEvent.InputTuple,
+    TitleUpdatedEvent.OutputTuple,
+    TitleUpdatedEvent.OutputObject
   >;
   getEvent(
     key: "Transfer"
@@ -574,18 +748,18 @@ export interface GameMap extends BaseContract {
       ApprovalForAllEvent.OutputObject
     >;
 
-    "BatchMetadataUpdate(uint256,uint256)": TypedContractEvent<
-      BatchMetadataUpdateEvent.InputTuple,
-      BatchMetadataUpdateEvent.OutputTuple,
-      BatchMetadataUpdateEvent.OutputObject
+    "BaseURIUpdated(string)": TypedContractEvent<
+      BaseURIUpdatedEvent.InputTuple,
+      BaseURIUpdatedEvent.OutputTuple,
+      BaseURIUpdatedEvent.OutputObject
     >;
-    BatchMetadataUpdate: TypedContractEvent<
-      BatchMetadataUpdateEvent.InputTuple,
-      BatchMetadataUpdateEvent.OutputTuple,
-      BatchMetadataUpdateEvent.OutputObject
+    BaseURIUpdated: TypedContractEvent<
+      BaseURIUpdatedEvent.InputTuple,
+      BaseURIUpdatedEvent.OutputTuple,
+      BaseURIUpdatedEvent.OutputObject
     >;
 
-    "KingdomMinted(address,uint256,int256,int256)": TypedContractEvent<
+    "KingdomMinted(address,uint256,uint256,string)": TypedContractEvent<
       KingdomMintedEvent.InputTuple,
       KingdomMintedEvent.OutputTuple,
       KingdomMintedEvent.OutputObject
@@ -596,15 +770,26 @@ export interface GameMap extends BaseContract {
       KingdomMintedEvent.OutputObject
     >;
 
-    "MetadataUpdate(uint256)": TypedContractEvent<
-      MetadataUpdateEvent.InputTuple,
-      MetadataUpdateEvent.OutputTuple,
-      MetadataUpdateEvent.OutputObject
+    "OwnershipTransferred(address,address)": TypedContractEvent<
+      OwnershipTransferredEvent.InputTuple,
+      OwnershipTransferredEvent.OutputTuple,
+      OwnershipTransferredEvent.OutputObject
     >;
-    MetadataUpdate: TypedContractEvent<
-      MetadataUpdateEvent.InputTuple,
-      MetadataUpdateEvent.OutputTuple,
-      MetadataUpdateEvent.OutputObject
+    OwnershipTransferred: TypedContractEvent<
+      OwnershipTransferredEvent.InputTuple,
+      OwnershipTransferredEvent.OutputTuple,
+      OwnershipTransferredEvent.OutputObject
+    >;
+
+    "TitleUpdated(uint256,string,uint256)": TypedContractEvent<
+      TitleUpdatedEvent.InputTuple,
+      TitleUpdatedEvent.OutputTuple,
+      TitleUpdatedEvent.OutputObject
+    >;
+    TitleUpdated: TypedContractEvent<
+      TitleUpdatedEvent.InputTuple,
+      TitleUpdatedEvent.OutputTuple,
+      TitleUpdatedEvent.OutputObject
     >;
 
     "Transfer(address,address,uint256)": TypedContractEvent<
