@@ -2,7 +2,6 @@
 import { ethers } from 'ethers';
 import GameMapABI from '../contracts/GameMap.sol/GameMap.json'; 
 
-// CONTRACT ADDRESS BARU Dari Sepolia
 const CONTRACT_ADDRESS = "0xbA1607e5Ae846b46A328a946f11fCfDc58A99e85"; 
 
 // ID Network Sepolia

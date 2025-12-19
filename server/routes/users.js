@@ -4,10 +4,8 @@ const { getUserProfile, linkTokenId, getMetadata } = require('../controllers/use
 
 // GET Profile
 router.get('/:userId/profile', getUserProfile);
-
-// Endpoint untuk OpenSea membaca data
+// Endpoint untuk OpenSea
 router.get('/metadata/:tokenId', getMetadata);
-
 // Endpoint untuk Frontend melapor Token ID baru
 router.post('/link-token', linkTokenId);
 

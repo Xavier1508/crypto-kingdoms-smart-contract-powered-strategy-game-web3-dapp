@@ -94,27 +94,21 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ msg: 'Mohon isi email dan password' });
     }
 
-    // 3. Hubungkan ke DB
     const db = getDB();
     const usersCollection = db.collection('users');
 
-    // 4. Cek apakah user ada (berdasarkan email)
     const user = await usersCollection.findOne({ email: email });
 
     if (!user) {
-      // Jika email tidak ditemukan
       return res.status(400).json({ msg: 'Email atau Password salah' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      // Jika password tidak cocok
       return res.status(400).json({ msg: 'Email atau Password salah' });
     }
 
-    // 6. Jika berhasil: Update 'lastLogin' di 'characters' (Best Practice)
-    // Ini opsional tapi bagus untuk game Anda
     try {
       const charactersCollection = db.collection('characters');
       await charactersCollection.updateOne(
@@ -123,7 +117,6 @@ router.post('/login', async (req, res) => {
       );
     } catch (err) {
       console.warn("Gagal update lastLogin untuk user:", user._id, err.message);
-      // Tidak perlu menghentikan login jika ini gagal, jadi kita lanjut saja
     }
 
     // 7. Buat Token (JWT)

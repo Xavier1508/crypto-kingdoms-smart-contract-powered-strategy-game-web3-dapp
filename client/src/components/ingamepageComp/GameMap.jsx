@@ -22,19 +22,34 @@ const GameMap = forwardRef(({ mapGrid, ownershipMap, playerData, onTileClick, in
     useImperativeHandle(ref, () => ({
         centerOnTile: (tileX, tileY) => {
             if (!containerRef.current || !appRef.current) return;
+            
             const app = appRef.current;
             const container = containerRef.current;
-            const scale = container.scale.x;
 
+            // 1. Reset Zoom ke Normal (Agar pas dilihat)
+            // Kalau mau tetap di zoom level user sekarang, ganti 1.0 dengan container.scale.x
+            const targetScale = 1.0; 
+            container.scale.set(targetScale);
+
+            // 2. Hitung Lokasi Isometric Tile Target
             const isoX = getIsoX(tileX, tileY);
             const isoY = getIsoY(tileX, tileY);
 
-            container.x = (app.screen.width / 2) - (isoX * scale);
-            container.y = (app.screen.height / 2) - (isoY * scale);
+            // 3. Pindahkan Container
+            // Rumus: (Tengah Layar) - (Posisi Objek * Zoom)
+            container.x = (app.screen.width / 2) - (isoX * targetScale);
+            container.y = (app.screen.height / 2) - (isoY * targetScale);
             
+            // 4. Pastikan tidak error bounds (Clamping)
+            // Koreksi sedikit y-offset agar castle tidak terlalu nempel atas
+            container.y += 50; 
+
+            // Cek batasan map
             const rows = mapGrid?.length || 400;
-            const mapRadius = (rows * TILE_WIDTH * scale) * 0.6;
+            const mapRadius = (rows * TILE_WIDTH * targetScale) * 0.6;
             clampCameraPosition(container, mapRadius, app.screen.width, app.screen.height);
+            
+            console.log(`🎥 Camera jumped to Tile[${tileX}, ${tileY}] at Screen[${container.x}, ${container.y}]`);
         }
     }));
 
@@ -114,12 +129,8 @@ const GameMap = forwardRef(({ mapGrid, ownershipMap, playerData, onTileClick, in
         };
     }, []);
 
-    // 3. RENDER TERRAIN (HANYA SEKALI SAJA SAAT LOAD MAP)
     useEffect(() => {
-        // Kita butuh appRef.current untuk generate texture
         if (isReady && mapGrid && containerRef.current && appRef.current) {
-            console.log("Creating Optimized Terrain...");
-
             initializeMapRenderer(appRef.current, containerRef.current, mapGrid);
             
             if (initialCenterX !== undefined) {

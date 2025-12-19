@@ -144,7 +144,7 @@ const InGamePage = () => {
         } catch (err) {
             console.error("Training Network Error:", err);
             alert("Connection Failed. Reverting state.");
-            fetchMapData(); // Rollback jika koneksi putus
+            fetchMapData();
         }
     };
 
@@ -155,9 +155,8 @@ const InGamePage = () => {
         if (!currentWorldId || !userId) return;
 
         try {
-            console.log(`⚔️ Attempting to conquer (${targetX}, ${targetY})...`);
+            console.log(`Attempting to conquer (${targetX}, ${targetY})...`);
 
-            // [PERBAIKAN 3] Gunakan API_URL
             const res = await fetch(`${API_URL}/api/worlds/conquer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -220,7 +219,7 @@ const InGamePage = () => {
         });
 
         socket.on('map_updated', (data) => {
-            console.log("🔥 Map Update:", data);
+            console.log("Map Update:", data);
 
             if (data.type === 'TILE_CONQUERED') {
                 setWorldData(prev => {
@@ -343,7 +342,7 @@ const InGamePage = () => {
                 playerStats={myStats}
                 onTrainTroops={handleTrainTroops}
                 onConquerTile={handleConquerTile}
-                onJumpHome={handleJumpHomeCastle}
+                onJumpHomeCastle={handleJumpHomeCastle}
             />
         </div>
     );

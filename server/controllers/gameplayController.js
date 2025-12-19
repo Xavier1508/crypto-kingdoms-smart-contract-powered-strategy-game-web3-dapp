@@ -87,28 +87,34 @@ const conquerTile = async (req, res) => {
         // Jika PvP: Attacker kehilangan pasukan senilai (Defense Power musuh * 0.5)
         // Jika PvE: Attacker kehilangan flat cost (Fatigue)
         
-        const attackerLoss = isPvP 
-            ? Math.floor((defender ? defender.power : 0) * 0.4) // 40% dari kekuatan musuh menjadi damage
-            : Math.floor(requiredPower * 0.2); // 20% dari cost (Cuma lelah/kecelakaan kecil)
+        let attackerLoss = 0;
 
+        if (isPvP && defender) {
+            // PvP: Attacker kehilangan pasukan senilai 40% dari Power Musuh
+            attackerLoss = Math.floor(defender.power * 0.4);
+        } else {
+            // PvE (Tanah Kosong/Barbarian):
+            // FULL COST DEDUCTION. Sesuai UI. 
+            // Jika UI bilang 250, maka pasukan senilai 250 Power akan mati (kelelahan/kecelakaan).
+            attackerLoss = requiredPower; 
+        }
+
+        // Jalankan fungsi helper yang baru (akan membunuh troops & recalculate power)
         calculateTroopLoss(attacker, attackerLoss);
 
         // B. Handle Defender (Jika PvP)
         if (isPvP && defender) {
-            // Defender Kalah Total -> Kehilangan Tile
-            // Defender juga kehilangan pasukan (Bonyok diserang)
-            const defenderLoss = Math.floor(attacker.power * 0.3); // Kena damage 30% dari kekuatan penyerang
+            const defenderLoss = Math.floor(attacker.power * 0.3); // Defender rugi 30% dari power penyerang
             calculateTroopLoss(defender, defenderLoss);
             
-            // Update DB Defender (Power berkurang)
+            // Update DB Defender (Power sudah di-recalculate di dalam fungsi helper)
             world.playerData.set(currentOwnerId, defender);
         }
 
         // C. Update Map Ownership
         world.ownershipMap[tx][ty] = userId;
         
-        // D. Save Everything (Atomicish)
-        // Kita save satu world object karena banyak yang berubah (map, p1, p2)
+        // D. Save Everything
         world.markModified('ownershipMap');
         world.markModified('playerData');
         await world.save();

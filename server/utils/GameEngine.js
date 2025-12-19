@@ -1,6 +1,5 @@
 // server/utils/GameEngine.js
-const { TILE_TYPES } = require('../utils/MapConstants'); // Pastikan path ini benar atau sesuaikan manual ID-nya jika constants ada di client
-
+const { TILE_TYPES } = require('../utils/MapConstants');
 // ID Tile Resource (Sesuaikan dengan MapConstants Anda)
 const RESOURCE_TILES = {
     10: 'food',  // Cropland

@@ -31,9 +31,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use((req, res, next) => {
     if (req.method === 'POST' || req.method === 'PUT') {
-        console.log(`📡 [${req.method}] ${req.url}`);
-        console.log("📦 Headers Content-Type:", req.headers['content-type']);
-        console.log("📦 Body Received:", req.body);
+        console.log(`[${req.method}] ${req.url}`);
+        console.log("Headers Content-Type:", req.headers['content-type']);
+        console.log("Body Received:", req.body);
     }
     next();
 });

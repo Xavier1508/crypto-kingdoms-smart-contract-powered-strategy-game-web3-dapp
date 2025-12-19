@@ -127,7 +127,7 @@ export const TILE_NAMES = {
     [TILE_TYPES.TOWER_BETA]: "Tower of Shadow",
 };
 
-// --- 6. DESKRIPSI TILE (Yang hilang tadi) ---
+// --- 6. DESKRIPSI TILE
 export const TILE_DESCRIPTIONS = {
     [TILE_TYPES.VOID]: "Nothing exists here.",
     [TILE_TYPES.ZONE_1]: "Fertile lands on the kingdom's edge. Safe for new governors.",

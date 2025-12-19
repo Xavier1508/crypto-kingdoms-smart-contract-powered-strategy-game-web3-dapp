@@ -170,7 +170,6 @@ export const updateSelectionHighlight = (x, y) => {
         selectionCursor.y = isoY;
         selectionCursor.visible = true;
         
-        // Animasi sedikit biar keren (Optional - flicker)
         selectionCursor.alpha = 1;
     } else {
         selectionCursor.visible = false;
@@ -192,10 +191,16 @@ export const updateDynamicLayer = (ownershipMap, playerData, castleTexture) => {
         for (let x = 0; x < rows; x++) {
             for (let y = 0; y < cols; y++) {
                 const ownerId = ownershipMap[x][y];
+                
+                // 🔥 PERBAIKAN WARNA DISINI 🔥
                 if (ownerId && playerData[ownerId]) {
                     const isoX = getIsoX(x, y);
                     const isoY = getIsoY(x, y);
                     
+                    // Ambil warna dari Database (format "hsl(...)")
+                    // Jika error/hilang, baru fallback ke biru (0x3366ff)
+                    const playerColor = playerData[ownerId].color || 0x3366ff;
+
                     // Gambar area kepemilikan
                     g.moveTo(isoX, isoY);
                     g.lineTo(isoX + HALF_WIDTH, isoY + HALF_HEIGHT);
@@ -203,9 +208,8 @@ export const updateDynamicLayer = (ownershipMap, playerData, castleTexture) => {
                     g.lineTo(isoX - HALF_WIDTH, isoY + HALF_HEIGHT);
                     g.closePath();
                     
-                    // Gunakan warna player jika valid, default biru
-                    // (Pastikan backend kirim format warna yg bisa dibaca PIXI, misal Hex/String)
-                    g.fill({ color: 0x3366ff, alpha: 0.35 });
+                    // Gunakan warna dinamis player!
+                    g.fill({ color: playerColor, alpha: 0.45 }); // Alpha dinaikkan dikit biar lebih jelas
                 }
             }
         }
@@ -239,7 +243,7 @@ export const updateDynamicLayer = (ownershipMap, playerData, castleTexture) => {
                 castle.x = isoX - 5;
                 castle.y = isoY + 23;
                 
-                // Sorting Order: Castle harus di atas tanah dan overlay
+                // Sorting Order
                 castle.zIndex = isoY + 1000; 
                 
                 objectLayer.addChild(castle);

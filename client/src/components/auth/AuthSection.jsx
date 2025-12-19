@@ -63,7 +63,7 @@ const AuthSection = () => {
 
   const closeSuccessModal = () => {
     setShowSuccessModal(false);
-    setIsLogin(true); // Otomatis pindah ke tab Login
+    setIsLogin(true);
   };
 
   return (

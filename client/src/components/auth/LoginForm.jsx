@@ -35,9 +35,6 @@ const LoginForm = ({ onToggle }) => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('userId', data.user.id);
       localStorage.setItem('username', data.user.username);
-      
-      console.log("Login Success! User ID saved:", data.user.id);
-
       navigate('/game');
 
     } catch (err) {

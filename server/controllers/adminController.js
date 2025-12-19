@@ -7,7 +7,7 @@ const { createEmptyGrid } = require('../utils/gameHelpers');
 // --- [FITUR BARU] CREATE NEW WORLD (Admin Only) ---
 const createWorld = async (req, res) => {
     try {
-        const { name, season } = req.body; // Input dari Postman/Admin Panel
+        const { name, season } = req.body;
 
         // Hitung ID World selanjutnya (Auto Increment sederhana)
         const lastWorld = await World.findOne().sort({ worldId: -1 });
@@ -21,7 +21,7 @@ const createWorld = async (req, res) => {
         
         const newWorld = new World({
             worldId: newWorldId,
-            name: name || `Kingdom #${newWorldId} (${season || 'Season 1'})`, // Nama Default Dinamis
+            name: name || `Kingdom #${newWorldId} (${season || 'Season 1'})`,
             status: "ACTIVE",
             maxPlayers: 32, // Bisa diubah sesuai keinginan
             seasonEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 Hari
@@ -37,7 +37,7 @@ const createWorld = async (req, res) => {
         await newWorld.save();
         await ProvinceManager.initializeProvinces(newWorldId, mapData.provinces);
         
-        console.log(`✅ World #${newWorldId} Created Successfully!`);
+        console.log(`World #${newWorldId} Created Successfully!`);
         res.json({ success: true, msg: `World #${newWorldId} Created`, worldId: newWorldId });
 
     } catch (error) {
@@ -52,7 +52,7 @@ const regenerateWorldMap = async (req, res) => {
         const { worldId } = req.params;
         const MAP_SIZE = 400;
         
-        console.log(`♻️ Regenerating Map for World #${worldId}...`);
+        console.log(`Regenerating Map for World #${worldId}...`);
 
         const mapData = generateRoKMap(MAP_SIZE);
         const emptyOwnership = createEmptyGrid(MAP_SIZE);

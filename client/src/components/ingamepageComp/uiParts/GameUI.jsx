@@ -5,7 +5,7 @@ import { Hammer } from 'lucide-react';
 import HUDHeader from './HUDHeader';
 import TileInfoPanel from './TileInfoPanel';
 import TroopTrainPanel from './TroopTrainPanel';
-import TroopStatusPanel from './TroopStatusPanel'; // [IMPORT BARU]
+import TroopStatusPanel from './TroopStatusPanel';
 
 const GameUI = ({ 
     worldInfo, 
@@ -71,6 +71,7 @@ const GameUI = ({
         onClose={onCloseTileInfo}
         onJumpToCoord={onJumpToCoord}
         onConquer={() => onConquerTile(selectedTile.x, selectedTile.y)}
+        myPower={playerStats?.power || 0}
       />
       
     </div>

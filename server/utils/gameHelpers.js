@@ -1,9 +1,6 @@
 // server/utils/gameHelpers.js
 
-// --- 1. GENERATOR WARNA DETERMINISTIK ---
-// Warna akan dibuat berdasarkan nama username, jadi pasti unik & konsisten.
 const generatePlayerColor = (username = "Player") => {
-    // Buat hash dari username
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
         hash = username.charCodeAt(i) + ((hash << 5) - hash);
@@ -30,29 +27,37 @@ const TILE_COSTS = {
 };
 
 // Fungsi bantu untuk membunuh pasukan secara proporsional
-const calculateTroopLoss = (pData, lossAmount) => {
-    // Total pasukan
-    const totalTroops = pData.troops.infantry + pData.troops.archer + pData.troops.cavalry + pData.troops.siege;
-    if (totalTroops <= 0) return;
+const calculateTroopLoss = (pData, powerLossAmount) => {
+    // 1. Hitung Total Power Real saat ini (Berdasarkan jumlah pasukan)
+    // Rumus harus sama persis dengan di game loop
+    const currentRealPower = 
+        (pData.troops.infantry * 1) + 
+        (pData.troops.archer * 1.5) + 
+        (pData.troops.cavalry * 2) + 
+        (pData.troops.siege * 2.5);
 
-    // Persentase kematian (Loss / Total Power * Scaling)
-    // Kita sederhanakan: LossAmount adalah "Power Damage" yang diterima
-    // Power kira-kira 1-2 per troop. Jadi kita bagi rata.
-    
-    // Safety: Jangan sampai minus
-    const safeLoss = Math.min(pData.power, lossAmount);
-    
-    // Kurangi Power Total
-    pData.power = Math.max(0, pData.power - safeLoss);
+    if (currentRealPower <= 0) {
+        pData.power = 0;
+        return;
+    }
 
-    // Kurangi Unit (Proporsional)
-    // Jika kehilangan 10% power, maka kehilangan 10% dari setiap jenis pasukan
-    const lossRatio = safeLoss / (totalTroops * 1.5 || 1); // Asumsi rata-rata 1 power = 1.5 power points
+    // 2. Hitung Persentase Kerugian
+    // Contoh: Punya 1000 Power, Cost 250. Loss Ratio = 0.25 (25%)
+    // Artinya 25% dari infantry mati, 25% dari kuda mati, dst.
+    const lossRatio = Math.min(1, powerLossAmount / currentRealPower);
 
-    pData.troops.infantry = Math.floor(Math.max(0, pData.troops.infantry * (1 - lossRatio)));
-    pData.troops.archer = Math.floor(Math.max(0, pData.troops.archer * (1 - lossRatio)));
-    pData.troops.cavalry = Math.floor(Math.max(0, pData.troops.cavalry * (1 - lossRatio)));
-    pData.troops.siege = Math.floor(Math.max(0, pData.troops.siege * (1 - lossRatio)));
+    // 3. Bunuh Pasukan (Bulatkan ke bawah biar aman)
+    pData.troops.infantry = Math.floor(pData.troops.infantry * (1 - lossRatio));
+    pData.troops.archer   = Math.floor(pData.troops.archer * (1 - lossRatio));
+    pData.troops.cavalry  = Math.floor(pData.troops.cavalry * (1 - lossRatio));
+    pData.troops.siege    = Math.floor(pData.troops.siege * (1 - lossRatio));
+
+    pData.power = Math.floor(
+        (pData.troops.infantry * 1) + 
+        (pData.troops.archer * 1.5) + 
+        (pData.troops.cavalry * 2) + 
+        (pData.troops.siege * 2.5)
+    );
 };
 
 module.exports = {

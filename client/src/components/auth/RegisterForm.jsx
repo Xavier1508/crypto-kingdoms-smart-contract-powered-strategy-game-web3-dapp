@@ -42,7 +42,7 @@ const RegisterForm = ({ onToggle, onRegisterSuccess }) => {
     try {
       const endpoint = `${API_URL}/api/auth/register`; 
       
-      console.log("Registering to:", endpoint); // Untuk debugging
+      console.log("Registering to:", endpoint);
 
       const response = await fetch(endpoint, {
         method: 'POST',
